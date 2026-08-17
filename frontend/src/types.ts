@@ -5,16 +5,18 @@ export interface OpenPort {
   service: string;
   protocol: string;
   state: 'open' | 'filtered';
+  banner?: string;
+  version?: string;
 }
 
 export interface NetworkNode {
-  id: string; // IP or unique identifier
+  id: string;
   label: string;
   ip: string;
   mac?: string;
   category: 'localhost' | 'gateway' | 'host' | 'docker' | 'vpn' | 'service';
   deviceType: DeviceType;
-  isSelf?: boolean; // Specially marks YOU (User)
+  isSelf?: boolean;
   vendor?: string;
   latencyMs: number;
   status: 'online' | 'warning' | 'offline';
@@ -22,6 +24,9 @@ export interface NetworkNode {
   interface?: string;
   os?: string;
   lastSeen: string;
+  ttl?: number;
+  hostname?: string;
+  confidence?: number;
   // Canvas physics coordinates
   x?: number;
   y?: number;
@@ -31,8 +36,8 @@ export interface NetworkNode {
 }
 
 export interface NetworkLink {
-  source: string; // node id
-  target: string; // node id
+  source: string;
+  target: string;
   type: 'ethernet' | 'wifi' | 'docker' | 'vpn' | 'virtual' | 'service';
   latencyMs?: number;
   activePackets?: number;
@@ -50,6 +55,7 @@ export interface NetworkScanSummary {
   subnetsScanned: string[];
   scanDurationMs: number;
   timestamp: string;
+  error?: string;
 }
 
 export interface NetworkScanResult {
@@ -74,4 +80,11 @@ export interface GraphSettings {
   showPorts: boolean;
   animateParticles: boolean;
   showGrid: boolean;
+}
+
+export interface ScanConfig {
+  subnet: string;
+  scanPorts: boolean;
+  osDetect: boolean;
+  timeoutMs: number;
 }

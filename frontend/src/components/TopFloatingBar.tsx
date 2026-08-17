@@ -3,6 +3,7 @@ import {
   MagnifyingGlass, 
   ArrowClockwise, 
   SlidersHorizontal, 
+  ClockCounterClockwise,
   Graph, 
   Table, 
   Cpu 
@@ -15,6 +16,7 @@ interface TopFloatingBarProps {
   setActiveView: (view: 'graph' | 'table') => void;
   activeInterface: string;
   onOpenSettings: () => void;
+  onOpenHistory: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   totalNodesCount: number;
@@ -27,12 +29,14 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   setActiveView,
   activeInterface,
   onOpenSettings,
+  onOpenHistory,
   searchQuery,
   setSearchQuery,
   totalNodesCount,
 }) => {
   return (
     <div className="absolute top-4 left-6 right-6 z-30 flex items-center justify-between pointer-events-none select-none font-mono text-xs">
+      {/* Left: Brand */}
       <div className="pointer-events-auto flex items-center gap-3 bg-[#141417]/90 border border-zinc-800 px-3.5 py-2 rounded-xl shadow-2xl backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <Cpu size={18} className="text-white" />
@@ -47,8 +51,9 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
         </span>
       </div>
 
+      {/* Center: Search (graph view only) */}
       {activeView === 'graph' && (
-        <div className="pointer-events-auto relative w-80">
+        <div className="pointer-events-auto absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-96">
           <MagnifyingGlass size={16} className="absolute left-3.5 top-2.5 text-zinc-400" />
           <input
             type="text"
@@ -60,6 +65,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
         </div>
       )}
 
+      {/* Right: Controls */}
       <div className="pointer-events-auto flex items-center gap-2.5">
         <div className="flex items-center bg-[#141417]/90 p-1 rounded-xl border border-zinc-800 backdrop-blur-xl">
           <button
@@ -85,6 +91,14 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
             Matrix
           </button>
         </div>
+
+        <button
+          onClick={onOpenHistory}
+          className="p-2 text-zinc-400 hover:text-white bg-[#141417]/90 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all shadow-2xl backdrop-blur-xl"
+          title="Session Scan History"
+        >
+          <ClockCounterClockwise size={16} />
+        </button>
 
         <button
           onClick={onOpenSettings}

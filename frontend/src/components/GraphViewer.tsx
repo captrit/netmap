@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { NetworkNode, NetworkLink, GraphSettings, DeviceType } from '../types';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { 
@@ -50,7 +50,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
   const transformRef = useRef({ x: 0, y: 0, k: 1 });
 
   const isDraggingNodeRef = useRef<PhysicsNode | null>(null);
-  const isPanningRef = useRef(false);
+  const isPanningStateRef = useRef(false);
   const startMouseRef = useRef({ x: 0, y: 0 });
   const hoverNodeRef = useRef<PhysicsNode | null>(null);
 
@@ -58,6 +58,42 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
 
   const animFrameRef = useRef<number | null>(null);
   const particleOffsetRef = useRef<number>(0);
+
+  // Guarantee every node has a link by creating fallback links to root (YOU) if unlinked
+  const effectiveLinks = useMemo(() => {
+    if (!nodes || nodes.length === 0) return links;
+
+    const userNode = nodes.find((n) => n.isSelf || n.deviceType === 'user');
+    const rootId = userNode ? userNode.id : nodes[0].id;
+
+    const validNodeIds = new Set(nodes.map((n) => n.id));
+    const linkedNodeIds = new Set<string>();
+
+    const validLinks: NetworkLink[] = [];
+
+    // Filter valid links where both source and target exist
+    links.forEach((l) => {
+      if (validNodeIds.has(l.source) && validNodeIds.has(l.target)) {
+        validLinks.push(l);
+        linkedNodeIds.add(l.source);
+        linkedNodeIds.add(l.target);
+      }
+    });
+
+    // Auto-connect any floating node to root (YOU / Gateway)
+    nodes.forEach((n) => {
+      if (n.id !== rootId && !linkedNodeIds.has(n.id)) {
+        validLinks.push({
+          source: rootId,
+          target: n.id,
+          type: n.category === 'vpn' ? 'vpn' : (n.category === 'docker' ? 'docker' : 'ethernet'),
+          label: 'Direct Network Route',
+        });
+      }
+    });
+
+    return validLinks;
+  }, [nodes, links]);
 
   // Initialize node layout position in radial arrangement around YOU
   useEffect(() => {
@@ -106,7 +142,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       else if (n.category === 'docker') dist = 220;
       else if (n.category === 'vpn') dist = 260;
       else if (n.category === 'gateway') dist = 160;
-      else if (n.category === 'host') dist = 320;
+      else if (n.category === 'host') dist = 300;
 
       return {
         ...n,
@@ -120,7 +156,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
     });
   }, [nodes]);
 
-  // Physics simulation step with fixed node pinning
+  // Physics simulation step
   const updatePhysics = useCallback(() => {
     const physNodes = physicsNodesRef.current;
     if (physNodes.length === 0) return;
@@ -150,8 +186,8 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       }
     }
 
-    // Link spring force
-    links.forEach((link) => {
+    // Link spring force using effectiveLinks
+    effectiveLinks.forEach((link) => {
       const source = nodeMap.get(link.source);
       const target = nodeMap.get(link.target);
       if (source && target) {
@@ -169,7 +205,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       }
     });
 
-    // Velocity integration (Skip pinned nodes)
+    // Velocity integration
     physNodes.forEach((n) => {
       if (!n.pinned) {
         n.vx -= n.x * 0.003;
@@ -185,7 +221,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
         n.vy = 0;
       }
     });
-  }, [links, settings]);
+  }, [effectiveLinks, settings]);
 
   // Canvas Render Loop
   useEffect(() => {
@@ -210,11 +246,9 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, rect.width, rect.height);
 
-      // Dark Obsidian Canvas
       ctx.fillStyle = '#09090b';
       ctx.fillRect(0, 0, rect.width, rect.height);
 
-      // Grid pattern
       if (settings.showGrid) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
         ctx.lineWidth = 1;
@@ -253,14 +287,14 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       const connectedNodeIds = new Set<string>();
       if (selectedNode) {
         connectedNodeIds.add(selectedNode.id);
-        links.forEach((l) => {
+        effectiveLinks.forEach((l) => {
           if (l.source === selectedNode.id) connectedNodeIds.add(l.target);
           if (l.target === selectedNode.id) connectedNodeIds.add(l.source);
         });
       }
 
       // Draw Links
-      links.forEach((link) => {
+      effectiveLinks.forEach((link) => {
         const source = nodeMap.get(link.source);
         const target = nodeMap.get(link.target);
         if (!source || !target) return;
@@ -343,7 +377,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
 
         const r = node.radius;
 
-        // 1. Selection / Hover / User Glow Ring
+        // Selection / Hover / User Ring
         if (isUser || isSelected || isHovered || isMatchingSearch) {
           ctx.beginPath();
           ctx.arc(node.x, node.y, r + (isUser ? 7 : 5), 0, Math.PI * 2);
@@ -354,7 +388,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
           ctx.setLineDash([]);
         }
 
-        // 2. Node Circle Fill & Border
+        // Node Circle Fill & Border
         ctx.beginPath();
         ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
         ctx.fillStyle = isUser ? '#ffffff' : (isSelected ? '#3f3f46' : (isHovered ? '#27272a' : '#18181b'));
@@ -364,7 +398,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
         ctx.lineWidth = isUser || isSelected ? 2 : 1;
         ctx.stroke();
 
-        // 3. ICON ONLY INSIDE THE NODE CIRCLE
+        // Icon inside Node Circle
         const iconSymbol = getDeviceSymbol(node.deviceType);
         ctx.font = isUser ? '16px Inter, sans-serif' : '12px Inter, sans-serif';
         ctx.fillStyle = isUser ? '#000000' : '#ffffff';
@@ -374,7 +408,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
 
         ctx.textBaseline = 'alphabetic';
 
-        // 4. Pin indicator dot
+        // Pin indicator
         if (node.pinned && !isUser) {
           ctx.beginPath();
           ctx.arc(node.x + r - 2, node.y - r + 2, 3, 0, Math.PI * 2);
@@ -397,7 +431,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       running = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [links, settings, updatePhysics, selectedNode, searchQuery]);
+  }, [effectiveLinks, settings, updatePhysics, selectedNode, searchQuery]);
 
   function getDeviceSymbol(type: DeviceType): string {
     switch (type) {
@@ -453,7 +487,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       clickedNode.vy = 0;
       onSelectNode(clickedNode);
     } else {
-      isPanningRef.current = true;
+      isPanningStateRef.current = true;
       startMouseRef.current = { x: clientX - transformRef.current.x, y: clientY - transformRef.current.y };
     }
   };
@@ -467,12 +501,11 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       isDraggingNodeRef.current.vx = 0;
       isDraggingNodeRef.current.vy = 0;
       isDraggingNodeRef.current.pinned = true;
-    } else if (isPanningRef.current) {
+    } else if (isPanningStateRef.current) {
       transformRef.current.x = clientX - startMouseRef.current.x;
       transformRef.current.y = clientY - startMouseRef.current.y;
     }
 
-    // Check hover
     const physNodes = physicsNodesRef.current;
     let foundHover: PhysicsNode | null = null;
     for (let i = physNodes.length - 1; i >= 0; i--) {
@@ -512,7 +545,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       isDraggingNodeRef.current.vy = 0;
       isDraggingNodeRef.current = null;
     }
-    isPanningRef.current = false;
+    isPanningStateRef.current = false;
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -560,7 +593,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing block"
       />
 
-      {/* MINIMAL SLEEK HOVER TOOLTIP (Icon + Host Label + IP + Status Dot) */}
+      {/* MINIMAL SLEEK HOVER TOOLTIP */}
       {hoverState && (
         <div
           style={{
@@ -581,7 +614,6 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
 
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse ml-0.5" title="Online"></span>
 
-          {/* Pointer caret arrow */}
           <div className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-white/20"></div>
         </div>
       )}

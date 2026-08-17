@@ -5,7 +5,8 @@ import { GraphControls } from './components/GraphControls';
 import { NodeDetailDrawer } from './components/NodeDetailDrawer';
 import { HostTable } from './components/HostTable';
 import { ScanSettingsModal } from './components/ScanSettingsModal';
-import { NetworkScanResult, NetworkNode, GraphSettings, NetworkInterface } from './types';
+import { ScanHistoryModal } from './components/ScanHistoryModal';
+import { NetworkScanResult, NetworkNode, NetworkLink, GraphSettings, NetworkInterface } from './types';
 
 export const App: React.FC = () => {
   const [scanResult, setScanResult] = useState<NetworkScanResult | null>(null);
@@ -14,7 +15,8 @@ export const App: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [currentSubnet, setCurrentSubnet] = useState<string>('192.168.29.0/24');
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [currentSubnet, setCurrentSubnet] = useState<string>('auto');
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
 
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
@@ -39,11 +41,7 @@ export const App: React.FC = () => {
         setInterfaces(data);
       }
     } catch (err) {
-      setInterfaces([
-        { name: 'wlp3s0', ip: '192.168.29.58', subnet: '192.168.29.0/24', mac: 'ec:2e:98:e9:2d:cf', isUp: true, type: 'wifi' },
-        { name: 'br-9a9b93e39b3d', ip: '172.23.0.1', subnet: '172.23.0.0/16', mac: 'aa:23:79:a0:5a:a0', isUp: true, type: 'docker' },
-        { name: 'lo.ipsec', ip: '10.30.30.4', subnet: '10.30.30.0/32', mac: 'vpn-tunnel', isUp: true, type: 'vpn' },
-      ]);
+      console.error('Failed to fetch interfaces:', err);
     }
   };
 
@@ -61,28 +59,93 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleTriggerScan = async (subnetToScan: string = currentSubnet) => {
+  const handleTriggerScan = async (
+    subnetToScan: string = currentSubnet,
+    osDetect: boolean = false,
+    timeoutMs: number = 500
+  ) => {
     setIsScanning(true);
-    try {
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subnet: subnetToScan, scan_ports: true }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setScanResult(json.result);
+
+    // Initialize empty canvas state for real-time live discovery streaming
+    setScanResult({
+      summary: {
+        totalHosts: 0,
+        onlineHosts: 0,
+        gatewaysCount: 0,
+        dockerCount: 0,
+        vpnCount: 0,
+        avgLatencyMs: 0,
+        openPortsCount: 0,
+        subnetsScanned: [subnetToScan],
+        scanDurationMs: 0,
+        timestamp: new Date().toLocaleString(),
+      },
+      nodes: [],
+      links: [],
+    });
+
+    const streamUrl = `/api/scan/stream?subnet=${encodeURIComponent(subnetToScan)}&timeout_ms=${timeoutMs}&os_detect=${osDetect}`;
+    const eventSource = new EventSource(streamUrl);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const { event: evtType, data } = payload;
+
+        if (evtType === 'node') {
+          const newNode: NetworkNode = data;
+          setScanResult((prev) => {
+            if (!prev) return prev;
+            const exists = prev.nodes.some((n) => n.id === newNode.id);
+            if (exists) {
+              return {
+                ...prev,
+                nodes: prev.nodes.map((n) => (n.id === newNode.id ? newNode : n)),
+              };
+            }
+            return {
+              ...prev,
+              nodes: [...prev.nodes, newNode],
+              summary: {
+                ...prev.summary,
+                totalHosts: prev.nodes.length + 1,
+                onlineHosts: prev.nodes.length + 1,
+              },
+            };
+          });
+        } else if (evtType === 'link') {
+          const newLink: NetworkLink = data;
+          setScanResult((prev) => {
+            if (!prev) return prev;
+            const exists = prev.links.some(
+              (l) => l.source === newLink.source && l.target === newLink.target
+            );
+            if (exists) return prev;
+            return {
+              ...prev,
+              links: [...prev.links, newLink],
+            };
+          });
+        } else if (evtType === 'complete') {
+          const finalResult: NetworkScanResult = data;
+          setScanResult(finalResult);
+          setIsScanning(false);
+          eventSource.close();
+        }
+      } catch (err) {
+        console.error('SSE parse error:', err);
       }
-    } catch (err) {
-      console.error('Scan request failed:', err);
-    } finally {
+    };
+
+    eventSource.onerror = () => {
       setIsScanning(false);
-    }
+      eventSource.close();
+    };
   };
 
   return (
     <div className="w-screen h-screen bg-[#09090b] text-white flex flex-col overflow-hidden font-mono select-none">
-      {/* Top Floating Minimalist Controls (No heavy Appbar) */}
+      {/* Top Floating Minimalist Controls */}
       <TopFloatingBar
         onStartScan={() => handleTriggerScan(currentSubnet)}
         isScanning={isScanning}
@@ -90,6 +153,7 @@ export const App: React.FC = () => {
         setActiveView={setActiveView}
         activeInterface={interfaces[0]?.name || 'wlp3s0'}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         totalNodesCount={scanResult?.nodes.length || 0}
@@ -145,9 +209,18 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         interfaces={interfaces}
         currentSubnet={currentSubnet}
-        onApplySettings={(subnet) => {
+        onApplySettings={(subnet, _scanPorts, osDetect, timeoutMs) => {
           setCurrentSubnet(subnet);
-          handleTriggerScan(subnet);
+          handleTriggerScan(subnet, osDetect, timeoutMs);
+        }}
+      />
+
+      {/* Session Scan History Modal */}
+      <ScanHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onSelectScan={(scan) => {
+          setScanResult(scan);
         }}
       />
     </div>

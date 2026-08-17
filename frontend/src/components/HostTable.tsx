@@ -57,7 +57,7 @@ export const HostTable: React.FC<HostTableProps> = ({ nodes, onSelectNode }) => 
   };
 
   return (
-    <div className="w-full h-full p-6 bg-[#09090b] flex flex-col gap-4 overflow-hidden font-mono select-none">
+    <div className="w-full h-full pt-24 px-6 pb-6 bg-[#09090b] flex flex-col gap-4 overflow-hidden font-mono select-none">
       <div className="flex flex-wrap items-center justify-between gap-4 bg-[#141417] p-4 rounded-xl border border-zinc-800">
         <div className="relative flex-1 min-w-[240px]">
           <MagnifyingGlass size={16} className="absolute left-3.5 top-2.5 text-zinc-400" />

@@ -1,18 +1,23 @@
-from fastapi import FastAPI, BackgroundTasks, Query
+"""
+NetPulse v2 API — Real-time Network Scanner, Streaming, and History API.
+"""
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+import json
 import time
 
 from scanner import NetworkScanner
+import db
 
 app = FastAPI(
-    title="NetPulse Obsidian API",
-    description="Real-time Network Scanner and Graph Intelligence API",
-    version="1.0.0"
+    title="NetPulse v2 API",
+    description="Real network reconnaissance scanner & streaming API",
+    version="2.0.0",
 )
 
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,40 +27,126 @@ app.add_middleware(
 )
 
 scanner = NetworkScanner()
-cached_topology: Optional[Dict[str, Any]] = None
 is_scanning = False
 
+
 class ScanRequest(BaseModel):
-    subnet: Optional[str] = "192.168.29.0/24"
+    subnet: Optional[str] = "auto"
     scan_ports: Optional[bool] = True
+    os_detect: Optional[bool] = False
+    timeout_ms: Optional[int] = 500
+
+
+@app.on_event("startup")
+def startup_event():
+    # Initialize in-memory SQLite database
+    db.get_db()
+
 
 @app.get("/api/health")
-def health_check():
-    return {"status": "ok", "service": "NetPulse Scanner API", "uptime_sec": round(time.process_time(), 2)}
+def health_check() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "NetPulse v2 API",
+        "engine": "Rust netpulse-scanner",
+        "uptime_sec": round(time.process_time(), 2),
+    }
+
 
 @app.get("/api/interfaces")
-def get_interfaces():
+def get_interfaces() -> List[Dict[str, Any]]:
     return scanner.get_system_interfaces()
 
+
 @app.get("/api/topology")
-def get_topology():
-    global cached_topology
-    if cached_topology is None:
-        cached_topology = scanner.execute_scan()
-    return cached_topology
+def get_topology() -> Dict[str, Any]:
+    cached = db.get_current_topology()
+    if cached is None:
+        cached = scanner.execute_scan()
+        db.save_scan(cached)
+    return cached
+
 
 @app.post("/api/scan")
-def trigger_scan(req: ScanRequest):
-    global cached_topology, is_scanning
+def trigger_scan(req: ScanRequest) -> Dict[str, Any]:
+    global is_scanning
     is_scanning = True
-    result = scanner.execute_scan(target_subnet=req.subnet or "192.168.29.0/24")
-    cached_topology = result
-    is_scanning = False
+    try:
+        result = scanner.execute_scan(
+            target_subnet=req.subnet or "auto",
+            timeout_ms=req.timeout_ms or 500,
+            os_detect=req.os_detect or False,
+            banners=req.scan_ports if req.scan_ports is not None else True,
+        )
+        db.save_scan(result)
+        return {
+            "status": "success",
+            "message": f"Scan completed for {req.subnet}",
+            "result": result,
+        }
+    finally:
+        is_scanning = False
+
+
+@app.get("/api/scan/stream")
+def stream_scan(
+    subnet: str = "auto",
+    timeout_ms: int = 500,
+    os_detect: bool = False,
+    banners: bool = True,
+):
+    """Server-Sent Events (SSE) endpoint for real-time live discovery updates."""
+    global is_scanning
+
+    def event_generator():
+        global is_scanning
+        is_scanning = True
+        try:
+            for raw_line in scanner.execute_scan_stream(
+                target_subnet=subnet,
+                timeout_ms=timeout_ms,
+                os_detect=os_detect,
+                banners=banners,
+            ):
+                yield f"data: {raw_line}\n\n"
+                try:
+                    event_obj = json.loads(raw_line)
+                    if event_obj.get("event") == "complete":
+                        db.save_scan(event_obj.get("data", {}))
+                except Exception:
+                    pass
+        finally:
+            is_scanning = False
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/api/history")
+def get_history() -> List[Dict[str, Any]]:
+    return db.get_scan_history()
+
+
+@app.get("/api/history/{scan_id}")
+def get_history_item(scan_id: int) -> Dict[str, Any]:
+    scan = db.get_scan_by_id(scan_id)
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found in session history")
+    return scan
+
+
+@app.delete("/api/history")
+def clear_history() -> Dict[str, str]:
+    db.clear_history()
+    return {"status": "success", "message": "Session history cleared"}
+
+
+@app.get("/api/scan/status")
+def scan_status() -> Dict[str, Any]:
     return {
-        "status": "success",
-        "message": f"Scan completed for {req.subnet}",
-        "result": result
+        "isScanning": is_scanning,
+        "hasCachedResult": db.get_current_topology() is not None,
     }
+
 
 if __name__ == "__main__":
     import uvicorn

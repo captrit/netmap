@@ -1,0 +1,18 @@
+[package]
+name = "netpulse-scanner"
+version = "2.0.0"
+edition = "2021"
+description = "Real network reconnaissance scanner for VAPT topology mapping"
+
+[dependencies]
+tokio = { version = "1.37", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ipnetwork = "0.20"
+dns-lookup = "2.0"
+ctrlc = "3.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

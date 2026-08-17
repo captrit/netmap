@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SlidersHorizontal, X, Globe, ShieldCheckered, Cpu } from '@phosphor-icons/react';
+import { SlidersHorizontal, X, Cpu } from '@phosphor-icons/react';
 import { NetworkInterface } from '../types';
 
 interface ScanSettingsModalProps {
@@ -7,7 +7,7 @@ interface ScanSettingsModalProps {
   onClose: () => void;
   interfaces: NetworkInterface[];
   currentSubnet: string;
-  onApplySettings: (subnet: string, scanPorts: boolean) => void;
+  onApplySettings: (subnet: string, scanPorts: boolean, osDetect?: boolean, timeoutMs?: number) => void;
 }
 
 export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
@@ -19,6 +19,8 @@ export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
 }) => {
   const [subnet, setSubnet] = useState(currentSubnet);
   const [scanPorts, setScanPorts] = useState(true);
+  const [osDetect, setOsDetect] = useState(false);
+  const [timeoutMs, setTimeoutMs] = useState(500);
 
   if (!isOpen) return null;
 
@@ -31,8 +33,8 @@ export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
               <SlidersHorizontal size={18} />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Network Subnet & Interfaces</h2>
-              <p className="text-[11px] text-zinc-400">Configure network sweep range and port discovery</p>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Scan Configuration</h2>
+              <p className="text-[11px] text-zinc-400">Real network reconnaissance — ARP, port scan, OS fingerprinting</p>
             </div>
           </div>
           <button
@@ -52,13 +54,14 @@ export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
               type="text"
               value={subnet}
               onChange={(e) => setSubnet(e.target.value)}
-              placeholder="e.g. 192.168.29.0/24"
+              placeholder="auto (detect from primary interface)"
               className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-700 rounded-lg text-white font-mono focus:outline-none focus:border-white transition-all"
             />
+            <p className="text-[10px] text-zinc-500 mt-1">Use "auto" to detect from your primary interface</p>
           </div>
 
           <div>
-            <label className="block text-zinc-400 text-[11px] mb-2">Detected Host Interfaces:</label>
+            <label className="block text-zinc-400 text-[11px] mb-2">Detected Interfaces:</label>
             <div className="grid grid-cols-1 gap-2 max-h-36 overflow-y-auto">
               {interfaces.map((ifc) => (
                 <button
@@ -84,11 +87,11 @@ export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-2 border-t border-zinc-800">
+          <div className="pt-2 border-t border-zinc-800 space-y-3">
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <p className="text-white font-medium">Service & Port Fingerprinting</p>
-                <p className="text-[10px] text-zinc-400">Fingerprints SSH, HTTP, Postgres, Redis, Vite & API ports</p>
+                <p className="text-white font-medium">Port Scanning & Banner Grabbing</p>
+                <p className="text-[10px] text-zinc-400">TCP connect scan on top 110 ports with service detection</p>
               </div>
               <input
                 type="checkbox"
@@ -97,6 +100,36 @@ export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
                 className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-white focus:ring-0 cursor-pointer"
               />
             </label>
+
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-white font-medium">OS Fingerprinting (nmap)</p>
+                <p className="text-[10px] text-zinc-400">Requires root/sudo — uses nmap --osscan-guess</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={osDetect}
+                onChange={(e) => setOsDetect(e.target.checked)}
+                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-white focus:ring-0 cursor-pointer"
+              />
+            </label>
+
+            <div>
+              <div className="flex items-center justify-between text-zinc-400 mb-1.5">
+                <span className="text-white font-medium">Port Timeout</span>
+                <span className="text-white font-bold">{timeoutMs}ms</span>
+              </div>
+              <input
+                type="range"
+                min="100"
+                max="2000"
+                step="100"
+                value={timeoutMs}
+                onChange={(e) => setTimeoutMs(Number(e.target.value))}
+                className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-white"
+              />
+              <p className="text-[10px] text-zinc-500 mt-1">Lower = faster scan, higher = fewer missed ports</p>
+            </div>
           </div>
         </div>
 
@@ -111,12 +144,12 @@ export const ScanSettingsModal: React.FC<ScanSettingsModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              onApplySettings(subnet, scanPorts);
+              onApplySettings(subnet, scanPorts, osDetect, timeoutMs);
               onClose();
             }}
             className="px-5 py-2 rounded-lg bg-white text-black font-bold hover:bg-zinc-200 transition-all shadow-lg shadow-white/10"
           >
-            Apply & Start Scan
+            Start Reconnaissance
           </button>
         </div>
       </div>
