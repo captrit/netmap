@@ -359,9 +359,9 @@ pub fn nmap_os_detect(ip: &str, ttl: Option<u8>, banner: Option<&str>) -> String
 /// Heuristic OS guess based on TTL value.
 pub fn guess_os_from_ttl(ttl: u8) -> &'static str {
     match ttl {
-        0..=32 => "Embedded/IoT Device",
-        33..=64 => "Linux / Android / macOS",
-        65..=128 => "Windows 10/11 / Windows Server",
+        0..=32 => "Embedded/IoT System",
+        33..=64 => "Linux Kernel",
+        65..=128 => "Windows OS",
         129..=255 => "Network Infrastructure (Router/Switch)",
     }
 }

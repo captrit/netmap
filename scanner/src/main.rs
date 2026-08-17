@@ -483,7 +483,50 @@ async fn main() {
             host_ip.starts_with(&vpn_prefix)
         });
 
-        let category = if is_vpn_host { "vpn" } else { "host" };
+        let is_docker_ip = host_ip.starts_with("172.16.")
+            || host_ip.starts_with("172.17.")
+            || host_ip.starts_with("172.18.")
+            || host_ip.starts_with("172.19.")
+            || host_ip.starts_with("172.20.")
+            || host_ip.starts_with("172.21.")
+            || host_ip.starts_with("172.22.")
+            || host_ip.starts_with("172.23.")
+            || host_ip.starts_with("172.24.")
+            || host_ip.starts_with("172.25.")
+            || host_ip.starts_with("172.26.")
+            || host_ip.starts_with("172.27.")
+            || host_ip.starts_with("172.28.")
+            || host_ip.starts_with("172.29.")
+            || host_ip.starts_with("172.30.")
+            || host_ip.starts_with("172.31.");
+
+        let category = if is_docker_ip {
+            "docker"
+        } else if is_vpn_host {
+            "vpn"
+        } else {
+            "host"
+        };
+
+        let node_device_type = if is_docker_ip {
+            "docker".to_string()
+        } else if is_vpn_host {
+            "service".to_string()
+        } else {
+            device_type
+        };
+
+        let node_vendor = if is_docker_ip && mac_vendor.is_none() {
+            Some("Docker Container Interface".to_string())
+        } else {
+            mac_vendor
+        };
+
+        let node_iface = if is_docker_ip {
+            Some("docker0".to_string())
+        } else {
+            Some(self_iface_name.clone())
+        };
 
         let node = NetworkNode {
             id: host_ip.clone(),
@@ -491,18 +534,18 @@ async fn main() {
             ip: host_ip.clone(),
             mac: host.mac.clone(),
             category: category.to_string(),
-            device_type: if is_vpn_host { "service".to_string() } else { device_type },
+            device_type: node_device_type,
             is_self: false,
-            vendor: mac_vendor,
+            vendor: node_vendor,
             latency_ms: (latency * 100.0).round() / 100.0,
             status: "online".to_string(),
             ports: port_entries,
-            interface: Some(self_iface_name.clone()),
+            interface: node_iface,
             os: Some(os_guess),
             last_seen: chrono_now(),
             ttl: effective_ttl,
             hostname: host.hostname.clone().or(ssl_cn),
-            confidence: Some(if host.mac.is_some() { 90 } else { 75 }),
+            confidence: Some(if is_docker_ip { 100 } else if host.mac.is_some() { 90 } else { 75 }),
         };
 
         let link_target = if is_vpn_host && !active_vpn_nodes.is_empty() {
@@ -691,9 +734,15 @@ fn guess_device_type(
 ) -> String {
     let port_nums: HashSet<u16> = ports.iter().map(|p| p.port).collect();
 
+    // 1. Explicit Mobile Service Ports (High Precision)
+    if port_nums.contains(&62078) || port_nums.contains(&37202) || port_nums.contains(&5555) || port_nums.contains(&8008) || port_nums.contains(&8009) {
+        return "mobile".to_string();
+    }
+
+    // 2. Explicit Hostname / mDNS / SSL CN Mobile Keywords
     if let Some(h) = hostname {
         let hl = h.to_lowercase();
-        if hl.contains("apple") || hl.contains("iphone") || hl.contains("ipad") || hl.contains("android") || hl.contains("galaxy") || hl.contains("pixel") {
+        if hl.contains("iphone") || hl.contains("ipad") || hl.contains("ipod") || hl.contains("android") || hl.contains("galaxy") || hl.contains("pixel") || hl.contains("oneplus") || hl.contains("xiaomi") || hl.contains("redmi") || hl.contains("poco") || hl.contains("oppo") || hl.contains("vivo") || hl.contains("realme") || hl.contains("huawei") || hl.contains("motorola") {
             return "mobile".to_string();
         }
         if hl.contains("tv") || hl.contains("chromecast") || hl.contains("roku") || hl.contains("firestick") {
@@ -717,10 +766,24 @@ fn guess_device_type(
         }
     }
 
+    // 3. Hardware Vendor Analysis
     if let Some(v) = vendor {
         let vl = v.to_lowercase();
-        if vl.contains("apple")
-            || vl.contains("samsung")
+
+        if vl.contains("apple") {
+            if port_nums.contains(&548) || port_nums.contains(&5900) || port_nums.contains(&22) || port_nums.contains(&445) {
+                return "laptop".to_string();
+            }
+            if let Some(h) = hostname {
+                let hl = h.to_lowercase();
+                if hl.contains("macbook") || hl.contains("imac") || hl.contains("macmini") {
+                    return "laptop".to_string();
+                }
+            }
+            return "laptop".to_string();
+        }
+
+        if vl.contains("samsung")
             || vl.contains("huawei")
             || vl.contains("xiaomi")
             || vl.contains("oneplus")
@@ -728,10 +791,11 @@ fn guess_device_type(
             || vl.contains("realme")
             || vl.contains("vivo")
         {
-            if port_nums.contains(&62078) || port_nums.is_empty() {
+            if !port_nums.contains(&139) && !port_nums.contains(&445) && !port_nums.contains(&3389) && !port_nums.contains(&22) {
                 return "mobile".to_string();
             }
         }
+
         if vl.contains("cisco")
             || vl.contains("juniper")
             || vl.contains("mikrotik")
@@ -751,6 +815,7 @@ fn guess_device_type(
         }
     }
 
+    // 4. Database & Service Ports
     if port_nums.contains(&3306)
         || port_nums.contains(&5432)
         || port_nums.contains(&27017)
@@ -766,13 +831,16 @@ fn guess_device_type(
         return "laptop".to_string();
     }
 
+    // 5. Explicit OS check (only if concrete OS string without slashes/fallback keywords)
     if let Some(o) = os {
         let ol = o.to_lowercase();
         if ol.contains("windows") {
             return "laptop".to_string();
         }
-        if ol.contains("android") || ol.contains("ios") {
-            return "mobile".to_string();
+        if !ol.contains('/') && !ol.contains("kernel") && !ol.contains("embedded") {
+            if ol.contains("android") || ol.contains("ios") {
+                return "mobile".to_string();
+            }
         }
     }
 
