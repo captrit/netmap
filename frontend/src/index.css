@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black text-neutral-200 antialiased selection:bg-neutral-800 selection:text-white;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}
+
+/* Obsidian Canvas Grid Pattern */
+.bg-graph-grid {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+.bg-radial-gradient {
+  background: radial-gradient(circle at 50% 30%, rgba(0, 112, 243, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+.glass-panel {
+  background: rgba(18, 18, 18, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-interactive {
+  background: rgba(18, 18, 18, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-interactive:hover {
+  background: rgba(26, 26, 26, 0.9);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 255, 255, 0.03);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(0, 112, 243, 0.35);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 223, 216, 0.35);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(121, 40, 202, 0.35);
+}
+
+.vercel-badge {
+  @apply px-2.5 py-0.5 text-xs font-mono rounded-full border border-neutral-800 bg-neutral-900/80 text-neutral-300 backdrop-blur-md flex items-center gap-1.5;
+}

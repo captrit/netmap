@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+venv/
+env/
+ENV/
+.venv/
+
+# Build outputs
+dist/
+frontend/dist/
+build/
+*.egg-info/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.log
+
+# Environment variables
+.env
+.env.local
