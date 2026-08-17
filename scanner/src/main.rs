@@ -548,7 +548,9 @@ async fn main() {
             confidence: Some(if is_docker_ip { 100 } else if host.mac.is_some() { 90 } else { 75 }),
         };
 
-        let link_target = if is_vpn_host && !active_vpn_nodes.is_empty() {
+        let link_target = if is_docker_ip {
+            self_ip.clone()
+        } else if is_vpn_host && !active_vpn_nodes.is_empty() {
             active_vpn_nodes[0].0.clone()
         } else {
             gw_node_id.clone()
@@ -557,9 +559,9 @@ async fn main() {
         let link = NetworkLink {
             source: link_target,
             target: host_ip.clone(),
-            link_type: if is_vpn_host { "vpn".to_string() } else { self_iface_type.clone() },
+            link_type: if is_docker_ip { "docker".to_string() } else if is_vpn_host { "vpn".to_string() } else { self_iface_type.clone() },
             latency_ms: Some((latency * 100.0).round() / 100.0),
-            label: Some(if is_vpn_host { "VPN Route".to_string() } else { self_iface_type.to_uppercase() }),
+            label: Some(if is_docker_ip { "Docker Bridge".to_string() } else if is_vpn_host { "VPN Route".to_string() } else { self_iface_type.to_uppercase() }),
         };
 
         if args.stream {

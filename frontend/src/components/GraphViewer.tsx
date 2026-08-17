@@ -330,7 +330,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
         }
 
         if (isDimmed) {
-          strokeColor = 'rgba(255, 255, 255, 0.03)';
+          strokeColor = 'rgba(255, 255, 255, 0.12)';
           lineWidth = 0.8;
         }
 
