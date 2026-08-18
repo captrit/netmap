@@ -35,6 +35,10 @@ class ScanRequest(BaseModel):
     scan_ports: Optional[bool] = True
     os_detect: Optional[bool] = False
     timeout_ms: Optional[int] = 500
+    # Active pivot testing: "user@host" you already hold SSH access to.
+    # Uses your existing SSH agent/keys only — never accepts a password.
+    pivot: Optional[str] = None
+    pivot_key: Optional[str] = None
 
 
 @app.on_event("startup")
@@ -77,6 +81,8 @@ def trigger_scan(req: ScanRequest) -> Dict[str, Any]:
             timeout_ms=req.timeout_ms or 500,
             os_detect=req.os_detect or False,
             banners=req.scan_ports if req.scan_ports is not None else True,
+            pivot=req.pivot,
+            pivot_key=req.pivot_key,
         )
         db.save_scan(result)
         return {
@@ -94,6 +100,8 @@ def stream_scan(
     timeout_ms: int = 500,
     os_detect: bool = False,
     banners: bool = True,
+    pivot: Optional[str] = None,
+    pivot_key: Optional[str] = None,
 ):
     """Server-Sent Events (SSE) endpoint for real-time live discovery updates."""
     global is_scanning
@@ -107,6 +115,8 @@ def stream_scan(
                 timeout_ms=timeout_ms,
                 os_detect=os_detect,
                 banners=banners,
+                pivot=pivot,
+                pivot_key=pivot_key,
             ):
                 yield f"data: {raw_line}\n\n"
                 try:

@@ -18,6 +18,7 @@ export const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [currentSubnet, setCurrentSubnet] = useState<string>('auto');
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
+  const [dismissedWarning, setDismissedWarning] = useState<string | null>(null);
 
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     repulsion: 5000,
@@ -161,6 +162,24 @@ export const App: React.FC = () => {
 
       {/* Main Full-Screen Canvas Area */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
+        {scanResult?.summary.warnings
+          ?.filter((w) => w !== dismissedWarning)
+          .map((warning) => (
+            <div
+              key={warning}
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-xl bg-amber-950/90 border border-amber-700/60 backdrop-blur-md rounded-xl px-4 py-2.5 shadow-2xl font-mono text-[11px] text-amber-200 flex items-start gap-3"
+            >
+              <span className="flex-1">{warning}</span>
+              <button
+                onClick={() => setDismissedWarning(warning)}
+                className="text-amber-400 hover:text-white shrink-0"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+
         {activeView === 'graph' ? (
           <>
             <GraphViewer

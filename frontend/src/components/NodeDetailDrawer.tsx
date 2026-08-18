@@ -1,17 +1,21 @@
 import React from 'react';
 import { NetworkNode, NetworkLink } from '../types';
-import { 
+import {
   User,
-  Desktop, 
-  DeviceMobile, 
-  HardDrive, 
-  Database, 
-  Globe, 
-  Cube, 
-  ShieldCheckered, 
+  Desktop,
+  DeviceMobile,
+  HardDrive,
+  Database,
+  Globe,
+  Cube,
+  ShieldCheckered,
   Lightning,
-  X, 
-  Pulse 
+  X,
+  Pulse,
+  Printer,
+  Television,
+  Cpu,
+  HardDrives,
 } from '@phosphor-icons/react';
 
 interface NodeDetailDrawerProps {
@@ -75,6 +79,22 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
       case 'vpn':
         icon = <ShieldCheckered size={16} />;
         label = 'IPsec / VPN Secure Tunnel';
+        break;
+      case 'printer':
+        icon = <Printer size={16} />;
+        label = 'Network Printer';
+        break;
+      case 'tv':
+        icon = <Television size={16} />;
+        label = 'Smart TV / Media Device';
+        break;
+      case 'iot':
+        icon = <Cpu size={16} />;
+        label = 'IoT / Embedded Device';
+        break;
+      case 'nas':
+        icon = <HardDrives size={16} />;
+        label = 'Network Attached Storage';
         break;
     }
 
@@ -169,13 +189,39 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                 <span className="text-zinc-200 font-bold text-[11px]">{node.confidence}%</span>
               </div>
             )}
+            {node.hop !== undefined && node.hop !== null && node.hop > 0 && (
+              <div>
+                <span className="text-zinc-400">Discovered: </span>
+                <span className="text-amber-400 font-medium">
+                  {node.hop} hop away, via pivot {node.viaPivot || 'unknown'}
+                </span>
+              </div>
+            )}
           </div>
+
+          {node.roles && node.roles.length > 0 && (
+            <div className="p-4 bg-red-950/30 rounded-xl border border-red-900/50 space-y-1.5">
+              <p className="text-red-400 font-bold flex items-center gap-1.5">
+                <ShieldCheckered size={14} /> VERIFIED FINDINGS
+              </p>
+              {node.roles.map((role) => (
+                <p key={role} className="text-[11px] text-red-200 font-mono pl-1">
+                  • {role}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="p-5 border-b border-zinc-800/80">
           <h3 className="text-xs font-bold font-mono text-white flex items-center gap-2 mb-3">
             <ShieldCheckered size={16} className="text-zinc-400" />
             OPEN PORTS & SERVICES ({node.ports.length})
+            {node.ports.some((p) => p.isWeb) && (
+              <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] normal-case font-bold">
+                {node.ports.filter((p) => p.isWeb).length} web app{node.ports.filter((p) => p.isWeb).length > 1 ? 's' : ''}
+              </span>
+            )}
           </h3>
 
           {node.ports.length === 0 ? (
@@ -183,10 +229,17 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
           ) : (
             <div className="space-y-2.5">
               {node.ports.map((p) => (
-                <div key={p.port} className="p-3 bg-zinc-900/90 rounded-lg border border-zinc-800 text-xs font-mono">
+                <div
+                  key={p.port}
+                  className={`p-3 rounded-lg border text-xs font-mono ${
+                    p.isWeb
+                      ? 'bg-blue-950/30 border-blue-500/50'
+                      : 'bg-zinc-900/90 border-zinc-800'
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <span className="w-2 h-2 rounded-full bg-white"></span>
+                      <span className={`w-2 h-2 rounded-full ${p.isWeb ? 'bg-blue-400' : 'bg-white'}`}></span>
                       <span className="font-bold text-white text-sm">:{p.port}</span>
                       <span className="text-zinc-200 font-semibold">{p.service}</span>
                     </div>
@@ -194,6 +247,16 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                       {p.protocol}
                     </span>
                   </div>
+                  {p.isWeb && p.url && (
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center gap-1.5 text-[11px] text-blue-300 hover:text-blue-200 font-medium underline decoration-blue-500/50"
+                    >
+                      🌐 Open {p.url}
+                    </a>
+                  )}
                   {(p.version || p.banner) && (
                     <div className="mt-2 pl-4 border-l-2 border-zinc-800 space-y-1">
                       {p.version && (

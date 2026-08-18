@@ -13,6 +13,15 @@ pub struct OpenPort {
     /// Detected service version from banner analysis.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// True only when a web app was actually confirmed — a captured banner
+    /// literally starting with "HTTP/", or a successfully fetched TLS
+    /// certificate on a conventional HTTPS port. Never set from port
+    /// number alone.
+    #[serde(default, rename = "isWeb", skip_serializing_if = "std::ops::Not::not")]
+    pub is_web: bool,
+    /// Direct browser-openable URL (ip:port), present only when is_web.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// Represents a discovered network node (host/device/container/interface).
@@ -47,6 +56,18 @@ pub struct NetworkNode {
     /// Confidence score 0-100 for device identification accuracy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confidence: Option<u8>,
+    /// Security-relevant findings backed by an actual verification probe
+    /// (never a guess): e.g. "ftp-anonymous-login", "smb-open-share:backup",
+    /// "domain-controller-candidate", "global-catalog", "ldaps".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
+    /// How many pivot hops away this node was found (0 = directly scanned
+    /// from this host). Present only for nodes discovered via `--pivot`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hop: Option<u8>,
+    /// IP of the pivot host this node was reached through, if any.
+    #[serde(skip_serializing_if = "Option::is_none", rename = "viaPivot")]
+    pub via_pivot: Option<String>,
 }
 
 /// A directional link between two nodes in the topology.
@@ -77,6 +98,10 @@ pub struct ScanSummary {
     pub subnets_scanned: Vec<String>,
     pub scan_duration_ms: f64,
     pub timestamp: String,
+    /// Actionable notices about degraded scan conditions (e.g. missing
+    /// CAP_NET_RAW) that reduce device coverage/accuracy for this run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 /// Top-level scan result output — JSON to stdout.

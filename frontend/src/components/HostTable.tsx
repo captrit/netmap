@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { NetworkNode } from '../types';
-import { 
+import {
   User,
-  MagnifyingGlass, 
-  Desktop, 
-  DeviceMobile, 
-  HardDrive, 
-  Database, 
-  Globe, 
-  Cube, 
-  ShieldCheckered, 
-  ArrowsDownUp, 
-  Lightning 
+  MagnifyingGlass,
+  Desktop,
+  DeviceMobile,
+  HardDrive,
+  Database,
+  Globe,
+  Cube,
+  ShieldCheckered,
+  ArrowsDownUp,
+  Lightning,
+  Printer,
+  Television,
+  Cpu,
+  HardDrives,
 } from '@phosphor-icons/react';
 
 interface HostTableProps {
@@ -52,6 +56,10 @@ export const HostTable: React.FC<HostTableProps> = ({ nodes, onSelectNode }) => 
       case 'router': return <Globe size={14} />;
       case 'docker': return <Cube size={14} />;
       case 'vpn': return <ShieldCheckered size={14} />;
+      case 'printer': return <Printer size={14} />;
+      case 'tv': return <Television size={14} />;
+      case 'iot': return <Cpu size={14} />;
+      case 'nas': return <HardDrives size={14} />;
       default: return <Desktop size={14} />;
     }
   };

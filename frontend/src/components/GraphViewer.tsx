@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { NetworkNode, NetworkLink, GraphSettings, DeviceType } from '../types';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-import { 
-  User, 
-  Desktop, 
-  DeviceMobile, 
-  HardDrive, 
-  Database, 
-  Globe, 
-  Cube, 
-  ShieldCheckered, 
-  Lightning 
+import {
+  User,
+  Desktop,
+  DeviceMobile,
+  HardDrive,
+  Database,
+  Globe,
+  Cube,
+  ShieldCheckered,
+  Lightning,
+  Printer,
+  Television,
+  Cpu,
+  HardDrives,
 } from '@phosphor-icons/react';
 
 interface GraphViewerProps {
@@ -38,7 +42,7 @@ interface HoverState {
 }
 
 export const GraphViewer: React.FC<GraphViewerProps> = ({
-  nodes,
+  nodes: rawNodes,
   links,
   selectedNode,
   onSelectNode,
@@ -58,6 +62,19 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
 
   const animFrameRef = useRef<number | null>(null);
   const particleOffsetRef = useRef<number>(0);
+
+  // Defensive dedupe: a backend bug could in theory re-emit two node objects
+  // sharing the same id (e.g. discovered once as a generic host, once as a
+  // Docker container). Two entries with the same id but independent physics
+  // bodies is exactly the "floating duplicate" bug — links resolve by id to
+  // only one of them, leaving the other an orphan circle with no visible line.
+  // Last occurrence wins, matching how the SSE stream already upserts by id.
+  const nodes = useMemo(() => {
+    if (!rawNodes || rawNodes.length === 0) return rawNodes;
+    const byId = new Map<string, NetworkNode>();
+    rawNodes.forEach((n) => byId.set(n.id, n));
+    return Array.from(byId.values());
+  }, [rawNodes]);
 
   // Guarantee every node has a link by creating fallback links to root (YOU) if unlinked
   const effectiveLinks = useMemo(() => {
@@ -321,6 +338,10 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
         } else if (link.type === 'docker') {
           strokeColor = 'rgba(255, 255, 255, 0.25)';
           ctx.setLineDash([3, 3]);
+        } else if (link.type === 'pivot') {
+          strokeColor = 'rgba(251, 191, 36, 0.75)';
+          lineWidth = 2.0;
+          ctx.setLineDash([8, 3, 2, 3]);
         }
 
         if (isSelectedLink) {
@@ -330,7 +351,7 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
         }
 
         if (isDimmed) {
-          strokeColor = 'rgba(255, 255, 255, 0.12)';
+          strokeColor = 'rgba(255, 255, 255, 0.03)';
           lineWidth = 0.8;
         }
 
@@ -416,6 +437,35 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
           ctx.fill();
         }
 
+        // Pivot-hop ring — found through a second host, not directly
+        if (node.hop && node.hop > 0) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r + 3, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(251, 191, 36, 0.85)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([2, 2]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Security-role indicator — an actual verified finding (open FTP,
+        // open SMB share, DC candidate), not a guess
+        if (node.roles && node.roles.length > 0) {
+          ctx.beginPath();
+          ctx.arc(node.x - r + 2, node.y - r + 2, 3, 0, Math.PI * 2);
+          ctx.fillStyle = '#f87171';
+          ctx.fill();
+        }
+
+        // Web-app indicator — a confirmed HTTP/HTTPS listener (real banner
+        // or real TLS cert), placed opposite the role dot so both can show
+        if (node.ports?.some((p) => p.isWeb)) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y - r - 3, 3, 0, Math.PI * 2);
+          ctx.fillStyle = '#60a5fa';
+          ctx.fill();
+        }
+
         ctx.restore();
       });
 
@@ -444,6 +494,10 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       case 'docker': return '📦';
       case 'vpn': return '🔒';
       case 'service': return '⚡';
+      case 'printer': return '🖨️';
+      case 'tv': return '📺';
+      case 'iot': return '📟';
+      case 'nas': return '💾';
       default: return '💻';
     }
   }
@@ -578,6 +632,10 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
       case 'router': return <Globe size={13} className="text-zinc-300" />;
       case 'docker': return <Cube size={13} className="text-zinc-300" />;
       case 'vpn': return <ShieldCheckered size={13} className="text-zinc-300" />;
+      case 'printer': return <Printer size={13} className="text-zinc-300" />;
+      case 'tv': return <Television size={13} className="text-zinc-300" />;
+      case 'iot': return <Cpu size={13} className="text-zinc-300" />;
+      case 'nas': return <HardDrives size={13} className="text-zinc-300" />;
       default: return <Desktop size={13} className="text-zinc-300" />;
     }
   };

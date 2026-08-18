@@ -101,12 +101,18 @@ class NetworkScanner:
         timeout_ms: int = 500,
         os_detect: bool = False,
         banners: bool = True,
+        pivot: Optional[str] = None,
+        pivot_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         cmd = [SCANNER_BINARY, "--subnet", target_subnet, "--timeout", str(timeout_ms)]
-        if os_detect:
-            cmd.append("--os-detect")
+        if not os_detect:
+            cmd.append("--no-os")
         if not banners:
             cmd.append("--no-banners")
+        if pivot:
+            cmd.extend(["--pivot", pivot])
+        if pivot_key:
+            cmd.extend(["--pivot-key", pivot_key])
 
         try:
             result = subprocess.run(
@@ -132,6 +138,8 @@ class NetworkScanner:
         timeout_ms: int = 500,
         os_detect: bool = False,
         banners: bool = True,
+        pivot: Optional[str] = None,
+        pivot_key: Optional[str] = None,
     ) -> Generator[str, None, None]:
         """Stream scanner events (NDJSON) line by line as they occur."""
         cmd = [
@@ -140,10 +148,14 @@ class NetworkScanner:
             "--timeout", str(timeout_ms),
             "--stream",
         ]
-        if os_detect:
-            cmd.append("--os-detect")
+        if not os_detect:
+            cmd.append("--no-os")
         if not banners:
             cmd.append("--no-banners")
+        if pivot:
+            cmd.extend(["--pivot", pivot])
+        if pivot_key:
+            cmd.extend(["--pivot-key", pivot_key])
 
         try:
             process = subprocess.Popen(

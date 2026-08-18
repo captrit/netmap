@@ -1,4 +1,4 @@
-export type DeviceType = 'user' | 'laptop' | 'mobile' | 'server' | 'database' | 'router' | 'docker' | 'vpn' | 'service';
+export type DeviceType = 'user' | 'laptop' | 'mobile' | 'server' | 'database' | 'router' | 'docker' | 'vpn' | 'service' | 'printer' | 'tv' | 'iot' | 'nas';
 
 export interface OpenPort {
   port: number;
@@ -7,6 +7,10 @@ export interface OpenPort {
   state: 'open' | 'filtered';
   banner?: string;
   version?: string;
+  // Confirmed web app (real HTTP banner or fetched TLS cert) — never
+  // guessed from the port number alone.
+  isWeb?: boolean;
+  url?: string;
 }
 
 export interface NetworkNode {
@@ -27,6 +31,13 @@ export interface NetworkNode {
   ttl?: number;
   hostname?: string;
   confidence?: number;
+  // Security-relevant findings backed by an actual verification probe
+  // (ftp-anonymous-login, smb-open-share:<name>, domain-controller-candidate,
+  // global-catalog, ldaps) — never a guess.
+  roles?: string[];
+  // Pivot-hop metadata — present only for nodes found via --pivot.
+  hop?: number;
+  viaPivot?: string;
   // Canvas physics coordinates
   x?: number;
   y?: number;
@@ -38,7 +49,7 @@ export interface NetworkNode {
 export interface NetworkLink {
   source: string;
   target: string;
-  type: 'ethernet' | 'wifi' | 'docker' | 'vpn' | 'virtual' | 'service';
+  type: 'ethernet' | 'wifi' | 'docker' | 'vpn' | 'virtual' | 'service' | 'pivot';
   latencyMs?: number;
   activePackets?: number;
   label?: string;
@@ -56,6 +67,9 @@ export interface NetworkScanSummary {
   scanDurationMs: number;
   timestamp: string;
   error?: string;
+  // Actionable notices about degraded scan conditions (e.g. missing
+  // CAP_NET_RAW) that reduce device coverage/accuracy for this run.
+  warnings?: string[];
 }
 
 export interface NetworkScanResult {
