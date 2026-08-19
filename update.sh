@@ -45,14 +45,33 @@ cd "$SCRIPT_DIR/scanner"
 cargo build --release
 cd "$SCRIPT_DIR"
 
-# 3. Apply raw network capabilities to compiled binary
-if command -v setcap &>/dev/null; then
-    echo "[NetMap Updater] Re-applying Linux raw socket capabilities (setcap)..."
-    if [ -f "$SCRIPT_DIR/scanner/target/release/netmap-scanner" ]; then
-        sudo setcap cap_net_raw,cap_net_admin+eip "$SCRIPT_DIR/scanner/target/release/netmap-scanner" 2>/dev/null || \
-        echo "[NetMap Updater] Note: If setcap prompts for sudo, run './scanner/setup-privileges.sh' to finalize capabilities."
-    fi
-fi
+# Detect Operating System
+OS_NAME="$(uname -s 2>/dev/null || echo "Unknown")"
+
+# 3. Handle OS-Specific Privilege / Driver Settings
+case "$OS_NAME" in
+    Linux*)
+        if command -v setcap &>/dev/null; then
+            echo "[NetMap Updater] Re-applying Linux raw socket capabilities (setcap)..."
+            if [ -f "$SCRIPT_DIR/scanner/target/release/netmap-scanner" ]; then
+                sudo setcap cap_net_raw,cap_net_admin+eip "$SCRIPT_DIR/scanner/target/release/netmap-scanner" 2>/dev/null || \
+                echo "[NetMap Updater] Note: If setcap prompts for sudo, run './scanner/setup-privileges.sh'."
+            fi
+        fi
+        ;;
+    Darwin*)
+        echo "[NetMap Updater] macOS detected — checking BPF device permissions..."
+        if [ -e "/dev/bpf0" ] && [ ! -w "/dev/bpf0" ]; then
+            echo "[NetMap Updater] Note: Run 'sudo chown \$USER:admin /dev/bpf*' if packet capture requires BPF permissions."
+        fi
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        echo "[NetMap Updater] Windows (Git Bash/MSYS) detected — ensure Npcap is installed for raw packet scanning."
+        ;;
+    *)
+        echo "[NetMap Updater] Operating System: $OS_NAME"
+        ;;
+esac
 
 # 4. Update Python Backend dependencies
 if [ -f "$SCRIPT_DIR/venv/bin/activate" ]; then
