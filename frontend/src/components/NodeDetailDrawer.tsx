@@ -260,7 +260,15 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                       r.includes('memcached') ||
                       r.includes('tftp') ||
                       r.includes('rsync') ||
-                      r.includes('elasticsearch')
+                      r.includes('elasticsearch') ||
+                      r.includes('prometheus') ||
+                      r.includes('grafana') ||
+                      r.includes('jenkins') ||
+                      r.includes('jfrog') ||
+                      r.includes('kibana') ||
+                      r.includes('minio') ||
+                      r.includes('vault') ||
+                      r.includes('consul')
                     ).length
                   })
                 </span>
@@ -313,10 +321,38 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                     category = 'Exposed Rsync Daemon';
                     description = `Open Rsync backup module reachable on port 873`;
                     format = `rsync://${node.ip}:873/`;
-                  } else if (r.includes('elasticsearch')) {
-                    category = 'Exposed Elasticsearch Cluster';
-                    description = `Elasticsearch cluster HTTP API active on port 9200`;
-                    format = `http://${node.ip}:9200/_cluster/health`;
+                  } else if (r.includes('prometheus')) {
+                    category = 'Prometheus Metrics Infrastructure';
+                    description = `Prometheus monitoring metrics exporter active on port 9090 / 9093 / 9100`;
+                    format = `http://${node.ip}:9090/graph`;
+                  } else if (r.includes('grafana')) {
+                    category = 'Grafana Dashboard Service';
+                    description = `Grafana analytics and monitoring UI reachable on port 3000`;
+                    format = `http://${node.ip}:3000/login`;
+                  } else if (r.includes('jenkins')) {
+                    category = 'Jenkins CI/CD Automation Server';
+                    description = `Jenkins automation server UI listening on port 8080 / 8443`;
+                    format = `http://${node.ip}:8080/`;
+                  } else if (r.includes('jfrog')) {
+                    category = 'JFrog Artifactory Repository';
+                    description = `JFrog binary artifact management platform active on port 8081 / 8082`;
+                    format = `http://${node.ip}:8081/artifactory`;
+                  } else if (r.includes('kibana')) {
+                    category = 'Kibana Analytics Dashboard';
+                    description = `Kibana log visualization interface reachable on port 5601`;
+                    format = `http://${node.ip}:5601/`;
+                  } else if (r.includes('minio')) {
+                    category = 'MinIO High-Performance Object Storage';
+                    description = `S3-compatible MinIO object storage service active on port 9000 / 9001`;
+                    format = `http://${node.ip}:9001/`;
+                  } else if (r.includes('vault')) {
+                    category = 'HashiCorp Vault Secrets Engine';
+                    description = `Vault secrets management API reachable on port 8200`;
+                    format = `http://${node.ip}:8200/v1/sys/health`;
+                  } else if (r.includes('consul')) {
+                    category = 'HashiCorp Consul Service Mesh';
+                    description = `Consul service discovery & KV agent active on port 8500`;
+                    format = `http://${node.ip}:8500/ui`;
                   } else if (r.includes('cve-check:')) {
                     category = 'Known Vulnerability Heuristic';
                     description = r.replace('cve-check:', '').trim();

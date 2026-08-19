@@ -847,7 +847,34 @@ async fn main() {
             roles.push("rabbitmq-amqp-broker-exposed".to_string());
         }
         if host_port_nums.contains(&9090) {
-            roles.push("prometheus-metrics-exporter-exposed".to_string());
+            roles.push("prometheus-metrics-server".to_string());
+        }
+        if host_port_nums.contains(&9093) {
+            roles.push("prometheus-alertmanager".to_string());
+        }
+        if host_port_nums.contains(&9100) {
+            roles.push("prometheus-node-exporter".to_string());
+        }
+        if host_port_nums.contains(&3000) {
+            roles.push("grafana-dashboard-service".to_string());
+        }
+        if host_port_nums.contains(&8080) || host_port_nums.contains(&8443) {
+            roles.push("jenkins-ci-cd-server".to_string());
+        }
+        if host_port_nums.contains(&8081) || host_port_nums.contains(&8082) {
+            roles.push("jfrog-artifactory-repository".to_string());
+        }
+        if host_port_nums.contains(&5601) {
+            roles.push("kibana-dashboard-interface".to_string());
+        }
+        if host_port_nums.contains(&9000) || host_port_nums.contains(&9001) {
+            roles.push("minio-object-storage".to_string());
+        }
+        if host_port_nums.contains(&8200) {
+            roles.push("hashicorp-vault-secrets-server".to_string());
+        }
+        if host_port_nums.contains(&8500) {
+            roles.push("hashicorp-consul-agent".to_string());
         }
 
         // 4. Remote Management & Legacy Cleartext Probes
