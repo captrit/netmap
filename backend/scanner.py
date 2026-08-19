@@ -101,6 +101,7 @@ class NetworkScanner:
         timeout_ms: int = 500,
         os_detect: bool = False,
         banners: bool = True,
+        scan_docker: bool = True,
         pivot: Optional[str] = None,
         pivot_key: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -109,6 +110,8 @@ class NetworkScanner:
             cmd.append("--no-os")
         if not banners:
             cmd.append("--no-banners")
+        if not scan_docker:
+            cmd.append("--no-docker")
         if pivot:
             cmd.extend(["--pivot", pivot])
         if pivot_key:
@@ -138,6 +141,7 @@ class NetworkScanner:
         timeout_ms: int = 500,
         os_detect: bool = False,
         banners: bool = True,
+        scan_docker: bool = True,
         pivot: Optional[str] = None,
         pivot_key: Optional[str] = None,
     ) -> Generator[str, None, None]:
@@ -152,6 +156,8 @@ class NetworkScanner:
             cmd.append("--no-os")
         if not banners:
             cmd.append("--no-banners")
+        if not scan_docker:
+            cmd.append("--no-docker")
         if pivot:
             cmd.extend(["--pivot", pivot])
         if pivot_key:

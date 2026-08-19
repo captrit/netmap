@@ -35,6 +35,7 @@ class ScanRequest(BaseModel):
     scan_ports: Optional[bool] = True
     os_detect: Optional[bool] = False
     timeout_ms: Optional[int] = 500
+    scan_docker: Optional[bool] = True
     # Active pivot testing: "user@host" you already hold SSH access to.
     # Uses your existing SSH agent/keys only — never accepts a password.
     pivot: Optional[str] = None
@@ -81,6 +82,7 @@ def trigger_scan(req: ScanRequest) -> Dict[str, Any]:
             timeout_ms=req.timeout_ms or 500,
             os_detect=req.os_detect or False,
             banners=req.scan_ports if req.scan_ports is not None else True,
+            scan_docker=req.scan_docker if req.scan_docker is not None else True,
             pivot=req.pivot,
             pivot_key=req.pivot_key,
         )
@@ -100,6 +102,7 @@ def stream_scan(
     timeout_ms: int = 500,
     os_detect: bool = False,
     banners: bool = True,
+    scan_docker: bool = True,
     pivot: Optional[str] = None,
     pivot_key: Optional[str] = None,
 ):
@@ -115,6 +118,7 @@ def stream_scan(
                 timeout_ms=timeout_ms,
                 os_detect=os_detect,
                 banners=banners,
+                scan_docker=scan_docker,
                 pivot=pivot,
                 pivot_key=pivot_key,
             ):

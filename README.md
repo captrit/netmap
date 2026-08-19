@@ -279,6 +279,26 @@ cd frontend && npm install && cd ..
 
 ---
 
+### Updating NetMap (Seamless Auto-Update)
+
+No need to remove or re-clone the repository when new features or fixes are pushed to the `main` branch. Use the automated updater:
+
+```bash
+# Option 1: Run dedicated updater script directly
+./update.sh
+
+# Option 2: Or pass --update flag to the start script
+./start_netmap.sh --update
+```
+
+The auto-updater automatically:
+1. Pulls the latest commits from the `main` branch (`git pull origin main`).
+2. Rebuilds the Rust scanner engine (`netmap-scanner`).
+3. Re-applies raw network capabilities (`setcap`).
+4. Updates Python & React dependencies and builds the production UI.
+
+---
+
 ## API Reference
 
 | Endpoint | Method | Description |

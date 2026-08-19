@@ -379,68 +379,128 @@ pub fn interface_has_carrier(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Enumerate running Docker containers via socket API or fallback to `docker ps`.
-#[allow(dead_code)]
-pub fn get_docker_containers() -> Vec<(String, String, String)> {
-    // Try `docker ps` first (simpler, no socket dependency)
-    let output = match Command::new("docker")
-        .args(["ps", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}"])
-        .output()
-    {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
-        _ => return Vec::new(),
-    };
-
-    let mut containers = Vec::new();
-    for line in output.lines() {
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() >= 3 {
-            containers.push((
-                parts[0].to_string(), // container ID
-                parts[1].to_string(), // name
-                parts[2].to_string(), // image
-            ));
-        }
-    }
-    containers
+#[derive(Debug, Clone)]
+pub struct DockerContainerInfo {
+    pub id: String,
+    pub name: String,
+    pub image: String,
+    pub network_mode: String,
+    pub networks: HashMap<String, String>, // network_name -> ip_address
+    pub ports: Vec<String>,
 }
 
-/// Get Docker container IPs by inspecting their networks.
-pub fn get_docker_network_info() -> HashMap<String, (String, String)> {
-    let mut result = HashMap::new();
-    let output = match Command::new("docker")
-        .args([
-            "ps",
-            "-q",
-        ])
-        .output()
-    {
+/// Enumerate running Docker containers with detailed network and port info.
+/// Returns (containers, optional_warning_message).
+pub fn get_docker_containers_info() -> (Vec<DockerContainerInfo>, Option<String>) {
+    let output = match Command::new("docker").args(["ps", "-q"]).output() {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
-        _ => return result,
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            let warn = if stderr.contains("permission denied") {
+                Some("Docker socket access denied. Run scanner with sudo or add your user to the 'docker' group to discover Docker containers.".to_string())
+            } else if !stderr.trim().is_empty() {
+                Some(format!("Docker discovery note: {}", stderr.trim()))
+            } else {
+                None
+            };
+            return (Vec::new(), warn);
+        }
+        Err(_) => {
+            if std::path::Path::new("/var/run/docker.sock").exists() {
+                return (
+                    Vec::new(),
+                    Some("Docker daemon socket present at /var/run/docker.sock, but 'docker' CLI failed or is missing.".to_string()),
+                );
+            }
+            return (Vec::new(), None);
+        }
     };
 
-    for container_id in output.lines() {
-        let id = container_id.trim();
-        if id.is_empty() {
-            continue;
-        }
-        if let Ok(inspect) = Command::new("docker")
+    let container_ids: Vec<&str> = output
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+
+    if container_ids.is_empty() {
+        return (Vec::new(), None);
+    }
+
+    let mut containers = Vec::new();
+    for id in container_ids {
+        let inspect = match Command::new("docker")
             .args([
                 "inspect",
                 "--format",
-                "{{.Name}}\t{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                "{{.Id}}\t{{.Name}}\t{{.Config.Image}}\t{{.HostConfig.NetworkMode}}\t{{range $net, $val := .NetworkSettings.Networks}}{{$net}}:{{$val.IPAddress}} {{end}}\t{{range $p, $b := .NetworkSettings.Ports}}{{$p}}->{{range $b}}{{.HostIp}}:{{.HostPort}} {{end}};{{end}}",
                 id,
             ])
             .output()
         {
-            let info = String::from_utf8_lossy(&inspect.stdout);
-            let parts: Vec<&str> = info.trim().split('\t').collect();
-            if parts.len() >= 2 && !parts[1].is_empty() {
-                let name = parts[0].trim_start_matches('/').to_string();
-                let ip = parts[1].to_string();
-                result.insert(ip.clone(), (id.to_string(), name));
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+            _ => continue,
+        };
+
+        let line = inspect.trim();
+        let parts: Vec<&str> = line.split('\t').collect();
+        if parts.len() >= 4 {
+            let container_id = parts[0].to_string();
+            let name = parts[1].trim_start_matches('/').to_string();
+            let image = parts[2].to_string();
+            let net_mode = parts[3].to_string();
+
+            let mut networks = HashMap::new();
+            if parts.len() >= 5 {
+                for net_entry in parts[4].split_whitespace() {
+                    if let Some((net_name, ip)) = net_entry.split_once(':') {
+                        if !ip.is_empty() {
+                            networks.insert(net_name.to_string(), ip.to_string());
+                        }
+                    }
+                }
+            }
+
+            let mut ports = Vec::new();
+            if parts.len() >= 6 {
+                for port_entry in parts[5].split(';') {
+                    let trimmed = port_entry.trim();
+                    if !trimmed.is_empty() {
+                        ports.push(trimmed.to_string());
+                    }
+                }
+            }
+
+            containers.push(DockerContainerInfo {
+                id: container_id,
+                name,
+                image,
+                network_mode: net_mode,
+                networks,
+                ports,
+            });
+        }
+    }
+
+    (containers, None)
+}
+
+pub fn get_docker_containers() -> Vec<(String, String, String)> {
+    let (info, _) = get_docker_containers_info();
+    info.into_iter()
+        .map(|c| (c.id, c.name, c.image))
+        .collect()
+}
+
+pub fn get_docker_network_info() -> HashMap<String, (String, String)> {
+    let (info, _) = get_docker_containers_info();
+    let mut map = HashMap::new();
+    for c in info {
+        for (_net, ip) in c.networks {
+            if !ip.is_empty() {
+                map.insert(ip, (c.id.clone(), c.name.clone()));
             }
         }
     }
-    result
+    map
 }
+

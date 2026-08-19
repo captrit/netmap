@@ -842,99 +842,58 @@ async fn main() {
     }
 
     // Phase 5: Docker Container Discovery
-    let has_docker = interfaces.iter().any(|i| i.if_type == InterfaceType::Docker);
-    if has_docker {
-        let docker_nets = discovery::get_docker_network_info();
-        if !docker_nets.is_empty() {
-            let docker_iface = interfaces.iter().find(|i| i.if_type == InterfaceType::Docker);
-            if let Some(docker_if) = docker_iface {
-                let bridge_ip = docker_if.ip.clone();
-                let bridge_node = NetworkNode {
-                    id: bridge_ip.clone(),
-                    label: format!("Docker Bridge ({})", docker_if.name),
-                    ip: bridge_ip.clone(),
-                    mac: Some(docker_if.mac.clone()),
-                    category: "docker".to_string(),
-                    device_type: "docker".to_string(),
-                    is_self: false,
-                    vendor: Some("Docker Network Bridge".to_string()),
-                    latency_ms: 0.1,
-                    status: "online".to_string(),
-                    ports: Vec::new(),
-                    interface: Some(docker_if.name.clone()),
-                    os: Some(format!("Docker Subnet {}", docker_if.cidr)),
-                    last_seen: chrono_now(),
-                    ttl: None,
-                    hostname: None,
-                    confidence: Some(100),
-                    roles: Vec::new(),
-                    hop: None,
-                    via_pivot: None,
-                };
+    if args.scan_docker {
+        let (docker_containers, docker_warn) = discovery::get_docker_containers_info();
+        if let Some(w) = docker_warn {
+            if !scan_warnings.contains(&w) {
+                scan_warnings.push(w);
+            }
+        }
 
-                let bridge_link = NetworkLink {
-                    source: self_ip.clone(),
-                    target: bridge_ip.clone(),
-                    link_type: "docker".to_string(),
-                    latency_ms: Some(0.1),
-                    label: Some("veth Bridge".to_string()),
-                };
+        if !docker_containers.is_empty() {
+            let docker_ifaces: Vec<&NetInterface> = interfaces
+                .iter()
+                .filter(|i| i.if_type == InterfaceType::Docker)
+                .collect();
 
-                if args.stream {
-                    emit_event("node", &bridge_node);
-                    emit_event("link", &bridge_link);
-                }
-                nodes.push(bridge_node);
-                links.push(bridge_link);
+            let mut bridge_nodes_created: HashMap<String, String> = HashMap::new(); // bridge_ip -> bridge_name
 
-                subnets_scanned.push(docker_if.cidr.clone());
-
-                for (container_ip, (_id, name)) in &docker_nets {
-                    let container_ports = probes::scan_ports(container_ip, 200).await;
-                    let mut port_entries = Vec::new();
-                    for (port, _lat) in &container_ports {
-                        let svc = probes::port_to_service(*port);
-                        port_entries.push(OpenPort {
-                            port: *port,
-                            service: svc.to_string(),
-                            protocol: "TCP".to_string(),
-                            state: "open".to_string(),
-                            banner: None,
-                            version: None,
-                            is_web: false,
-                            url: None,
-                        });
-                    }
-
+            for container in &docker_containers {
+                if container.network_mode == "host" || container.networks.is_empty() {
+                    // Host network mode container: shares host IP
+                    let host_c_id = format!(
+                        "docker-host-{}",
+                        &container.id[..12.min(container.id.len())]
+                    );
                     let c_node = NetworkNode {
-                        id: container_ip.clone(),
-                        label: format!("Docker: {}", name),
-                        ip: container_ip.clone(),
+                        id: host_c_id.clone(),
+                        label: format!("Docker (host): {}", container.name),
+                        ip: self_ip.clone(),
                         mac: None,
                         category: "docker".to_string(),
                         device_type: "docker".to_string(),
                         is_self: false,
-                        vendor: Some("Docker Container".to_string()),
+                        vendor: Some(format!("Docker Container ({})", container.image)),
                         latency_ms: 0.1,
                         status: "online".to_string(),
-                        ports: port_entries,
-                        interface: Some(docker_if.name.clone()),
-                        os: Some("Containerized Linux".to_string()),
+                        ports: Vec::new(),
+                        interface: Some(self_iface_name.clone()),
+                        os: Some(format!("Containerized ({})", container.image)),
                         last_seen: chrono_now(),
                         ttl: None,
-                        hostname: Some(name.clone()),
+                        hostname: Some(container.name.clone()),
                         confidence: Some(100),
-                        roles: Vec::new(),
+                        roles: container.ports.clone(),
                         hop: None,
                         via_pivot: None,
                     };
 
                     let c_link = NetworkLink {
-                        source: bridge_ip.clone(),
-                        target: container_ip.clone(),
+                        source: self_ip.clone(),
+                        target: host_c_id.clone(),
                         link_type: "docker".to_string(),
                         latency_ms: Some(0.1),
-                        label: Some("Container veth".to_string()),
+                        label: Some("Host Net Container".to_string()),
                     };
 
                     if args.stream {
@@ -943,6 +902,142 @@ async fn main() {
                     }
                     nodes.push(c_node);
                     links.push(c_link);
+                } else {
+                    for (net_name, container_ip) in &container.networks {
+                        if container_ip.is_empty() {
+                            continue;
+                        }
+                        let c_ip_addr = match IpAddr::from_str(container_ip) {
+                            Ok(addr) => addr,
+                            Err(_) => continue,
+                        };
+
+                        // Match container IP against host's docker bridge interfaces
+                        let matching_iface = docker_ifaces.iter().find(|iface| {
+                            if let Ok(net) = ipnetwork::IpNetwork::from_str(&iface.cidr) {
+                                net.contains(c_ip_addr)
+                            } else {
+                                false
+                            }
+                        });
+
+                        let (bridge_ip, bridge_name) = match matching_iface {
+                            Some(iface) => (iface.ip.clone(), iface.name.clone()),
+                            None => {
+                                if let Some(def_if) = docker_ifaces.first() {
+                                    (def_if.ip.clone(), def_if.name.clone())
+                                } else {
+                                    (self_ip.clone(), net_name.clone())
+                                }
+                            }
+                        };
+
+                        // Create bridge node if it's not self_ip and not created yet
+                        if bridge_ip != self_ip && !bridge_nodes_created.contains_key(&bridge_ip) {
+                            let b_mac = matching_iface.map(|i| i.mac.clone());
+                            let bridge_node = NetworkNode {
+                                id: bridge_ip.clone(),
+                                label: format!("Docker Bridge ({})", bridge_name),
+                                ip: bridge_ip.clone(),
+                                mac: b_mac,
+                                category: "docker".to_string(),
+                                device_type: "docker".to_string(),
+                                is_self: false,
+                                vendor: Some("Docker Network Bridge".to_string()),
+                                latency_ms: 0.1,
+                                status: "online".to_string(),
+                                ports: Vec::new(),
+                                interface: Some(bridge_name.clone()),
+                                os: Some(format!("Docker Subnet ({})", net_name)),
+                                last_seen: chrono_now(),
+                                ttl: None,
+                                hostname: None,
+                                confidence: Some(100),
+                                roles: Vec::new(),
+                                hop: None,
+                                via_pivot: None,
+                            };
+
+                            let bridge_link = NetworkLink {
+                                source: self_ip.clone(),
+                                target: bridge_ip.clone(),
+                                link_type: "docker".to_string(),
+                                latency_ms: Some(0.1),
+                                label: Some("veth Bridge".to_string()),
+                            };
+
+                            if args.stream {
+                                emit_event("node", &bridge_node);
+                                emit_event("link", &bridge_link);
+                            }
+                            nodes.push(bridge_node);
+                            links.push(bridge_link);
+                            bridge_nodes_created.insert(bridge_ip.clone(), bridge_name.clone());
+
+                            subnets_scanned.push(format!("{}/16", bridge_ip));
+                        }
+
+                        // Fast container port scan
+                        let container_ports = probes::scan_ports(container_ip, 200).await;
+                        let mut port_entries = Vec::new();
+                        for (port, _lat) in &container_ports {
+                            let svc = probes::port_to_service(*port);
+                            port_entries.push(OpenPort {
+                                port: *port,
+                                service: svc.to_string(),
+                                protocol: "TCP".to_string(),
+                                state: "open".to_string(),
+                                banner: None,
+                                version: None,
+                                is_web: false,
+                                url: None,
+                            });
+                        }
+
+                        let c_node = NetworkNode {
+                            id: container_ip.clone(),
+                            label: format!("Docker: {}", container.name),
+                            ip: container_ip.clone(),
+                            mac: None,
+                            category: "docker".to_string(),
+                            device_type: "docker".to_string(),
+                            is_self: false,
+                            vendor: Some(format!("Docker Container ({})", container.image)),
+                            latency_ms: 0.1,
+                            status: "online".to_string(),
+                            ports: port_entries,
+                            interface: Some(bridge_name.clone()),
+                            os: Some(format!("Containerized ({})", container.image)),
+                            last_seen: chrono_now(),
+                            ttl: None,
+                            hostname: Some(container.name.clone()),
+                            confidence: Some(100),
+                            roles: container.ports.clone(),
+                            hop: None,
+                            via_pivot: None,
+                        };
+
+                        let link_source = if bridge_nodes_created.contains_key(&bridge_ip) {
+                            bridge_ip.clone()
+                        } else {
+                            self_ip.clone()
+                        };
+
+                        let c_link = NetworkLink {
+                            source: link_source,
+                            target: container_ip.clone(),
+                            link_type: "docker".to_string(),
+                            latency_ms: Some(0.1),
+                            label: Some(format!("veth ({})", net_name)),
+                        };
+
+                        if args.stream {
+                            emit_event("node", &c_node);
+                            emit_event("link", &c_link);
+                        }
+                        nodes.push(c_node);
+                        links.push(c_link);
+                    }
                 }
             }
         }
