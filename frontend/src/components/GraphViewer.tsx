@@ -620,15 +620,6 @@ export const GraphViewer: React.FC<GraphViewerProps> = ({
           ctx.setLineDash([]);
         }
 
-        // Security-role indicator — an actual verified finding (open FTP,
-        // open SMB share, DC candidate), not a guess
-        if (node.roles && node.roles.length > 0) {
-          ctx.beginPath();
-          ctx.arc(node.x - r + 2, node.y - r + 2, 3, 0, Math.PI * 2);
-          ctx.fillStyle = palette.danger;
-          ctx.fill();
-        }
-
         // Web-app indicator — a confirmed HTTP/HTTPS listener (real banner
         // or real TLS cert). Yellow, not the accent blue used for search
         // matches, so the two don't read as the same thing.
