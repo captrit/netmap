@@ -9,6 +9,7 @@ import {
   Sun,
   Moon,
   Sparkle,
+  DownloadSimple,
 } from '@phosphor-icons/react';
 import { Theme } from '../hooks/useTheme';
 import { VersionInfo } from '../types';
@@ -37,6 +38,7 @@ interface TopFloatingBarProps {
   activeInterface: string;
   onOpenSettings: () => void;
   onOpenHistory: () => void;
+  onOpenExport?: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   totalNodesCount: number;
@@ -61,6 +63,7 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   onToggleTheme,
   versionInfo,
   onOpenUpdateModal,
+  onOpenExport,
 }) => {
   return (
     <div className="absolute top-4 left-6 right-6 z-30 flex items-center justify-between pointer-events-none select-none font-sans text-xs">
@@ -156,6 +159,16 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
         >
           <ClockCounterClockwise size={16} />
         </button>
+
+        {onOpenExport && (
+          <button
+            onClick={onOpenExport}
+            className="p-2 text-muted-foreground hover:text-foreground bg-surface/90 hover:bg-surface-hover border border-border rounded-lg transition-all shadow-lg backdrop-blur-xl"
+            title="Export Scan Artifacts (JSON, CSV, Nmap XML)"
+          >
+            <DownloadSimple size={16} />
+          </button>
+        )}
 
         <button
           onClick={onOpenSettings}

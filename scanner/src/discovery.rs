@@ -82,28 +82,9 @@ pub fn get_interfaces() -> Vec<NetInterface> {
 /// alone (which only look for tun/tap/wg/ipsec/ppp *interface names*)
 /// completely miss this, silently absorbing the VPN address into
 /// whatever the physical interface's type is (wifi/ethernet).
-fn classify_interface(name: &str, _ip: &str, prefix_len: u8) -> InterfaceType {
+fn classify_interface(name: &str, ip: &str, prefix_len: u8) -> InterfaceType {
     if name == "lo" {
         return InterfaceType::Loopback;
-    }
-    if prefix_len >= 31 {
-        return InterfaceType::Vpn;
-    }
-    // Kernel link-type check — catches tunnel adapters regardless of what
-    // they're named. Interface *names* are a convention (tun0/wg0/ppp0),
-    // not a guarantee: SSL-VPN clients (GlobalProtect, Fortinet, Cisco
-    // AnyConnect/OpenConnect variants) and custom WireGuard configs often
-    // use names that match none of our keywords below. ARPHRD_NONE (type
-    // 65534) is the kernel's own marker for a point-to-point tunnel device
-    // with no L2 addressing — real wifi/ethernet/bridge interfaces never
-    // report this, so it's a safe, name-independent signal.
-    if let Ok(t) = fs::read_to_string(format!("/sys/class/net/{}/type", name)) {
-        if t.trim() == "65534" {
-            return InterfaceType::Vpn;
-        }
-    }
-    if name.starts_with("wl") || name.starts_with("wlan") {
-        return InterfaceType::Wifi;
     }
     if name.starts_with("br-")
         || name.starts_with("docker")
@@ -112,15 +93,58 @@ fn classify_interface(name: &str, _ip: &str, prefix_len: u8) -> InterfaceType {
     {
         return InterfaceType::Docker;
     }
-    if name.contains("tun")
-        || name.contains("tap")
-        || name.contains("wg")
-        || name.contains("ipsec")
-        || name.contains("ppp")
-        || name.contains("vti")
-        || name.contains("xfrm")
+    if prefix_len >= 31 {
+        return InterfaceType::Vpn;
+    }
+
+    // Fully setup-agnostic VPN detection heuristics:
+    // 1. Kernel sysfs link type: ARPHRD_NONE (65534), ARPHRD_PPP (512), ARPHRD_TUNNEL (768), SIT (800)
+    if let Ok(t) = fs::read_to_string(format!("/sys/class/net/{}/type", name)) {
+        let type_val = t.trim();
+        if type_val == "65534" || type_val == "512" || type_val == "768" || type_val == "769" || type_val == "776" || type_val == "800" {
+            return InterfaceType::Vpn;
+        }
+    }
+
+    // 2. Kernel sysfs flags: IFF_POINTOPOINT (0x10) or IFF_NOARP (0x80)
+    if let Ok(f_str) = fs::read_to_string(format!("/sys/class/net/{}/flags", name)) {
+        if let Ok(flags) = u32::from_str_radix(f_str.trim().trim_start_matches("0x"), 16) {
+            if (flags & 0x10) != 0 || (flags & 0x80) != 0 {
+                return InterfaceType::Vpn;
+            }
+        }
+    }
+
+    // 3. Known VPN/overlay interface name patterns across distros & commercial clients
+    let lower_name = name.to_lowercase();
+    if lower_name.contains("tun")
+        || lower_name.contains("tap")
+        || lower_name.contains("wg")
+        || lower_name.contains("ipsec")
+        || lower_name.contains("ppp")
+        || lower_name.contains("vti")
+        || lower_name.contains("xfrm")
+        || lower_name.contains("tailscale")
+        || lower_name.contains("zt")
+        || lower_name.contains("zerotier")
+        || lower_name.contains("warp")
+        || lower_name.contains("cscotun")
+        || lower_name.contains("forti")
+        || lower_name.contains("gpd")
+        || lower_name.contains("proton")
+        || lower_name.contains("express")
+        || lower_name.contains("nord")
     {
         return InterfaceType::Vpn;
+    }
+
+    // 4. CGNAT / Tailscale IPv4 subnet heuristic (100.64.0.0/10)
+    if ip.starts_with("100.") {
+        return InterfaceType::Vpn;
+    }
+
+    if name.starts_with("wl") || name.starts_with("wlan") {
+        return InterfaceType::Wifi;
     }
     if name.starts_with("en") || name.starts_with("eth") {
         return InterfaceType::Ethernet;

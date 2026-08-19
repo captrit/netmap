@@ -13,10 +13,14 @@
 ## Core Capabilities
 
 - **Multi-Threaded Rust Scanner Engine (`netmap-scanner`)**: Sub-second subnet sweeps powered by asynchronous Rust (`tokio`).
-- **Deep Device Fingerprinting**: Combines ICMP TTL heuristics, HTTP title extraction, SSL CN parsing, mDNS (`avahi-resolve`), and NetBIOS (`nmblookup`).
-- **Iceberg Stealth Recon Engine**: Multi-layer L3 ICMP Timestamp/Mask, L4 TCP ACK/SYN, UDP Unreachable, and L5-L7 SSDP/WS-Discovery multicast probes to uncover firewalled and hidden hosts.
+- **Security & Misconfiguration Audit Engine**: Automated non-blocking detection of unauthenticated databases (MySQL, PostgreSQL, MongoDB, Redis, MSSQL, Elasticsearch, Cassandra), open SMB file shares, anonymous FTP, cleartext Telnet, unencrypted Docker APIs, and CVE heuristics.
+- **Deep Device & High-Confidence Printer Fingerprinting (75%+)**: Multi-signal classifier combining ICMP TTL heuristics, HTTP title extraction, SSL CN parsing, mDNS (`avahi-resolve`), NetBIOS (`nmblookup`), and specialized printer probes (RAW 9100, IPP 631, LPD 515, SNMP MIBs, and OEM OUIs for HP, Canon, Epson, Brother, Kyocera, Xerox, Ricoh, etc.).
+- **Dynamic Connection String Generator**: Instant copyable URIs (`mysql://`, `postgresql://`, `mongodb://`, `redis://`, `smb://`, `ftp://`, `ssh`, `rdp://`, `vnc://`) for discovered services and databases.
+- **Scan Artifact Exporter**: Export topology graphs and host matrices into JSON, CSV, and standard Nmap-compatible XML formats.
+- **VPN-Agnostic Subnet Discovery**: Kernel-level sysfs (`ARPHRD_*`) and XFRM policy route inspection to automatically discover internal subnets behind WireGuard, Tailscale, ZeroTier, OpenVPN, and IPsec.
+- **Iceberg Stealth Recon Engine**: Multi-layer L3 ICMP Timestamp/Mask, L4 TCP ACK/SYN, UDP Unreachable, and L5-L7 SSDP/WS-Discovery multicast probes to unearth firewalled hosts.
 - **Real-Time SSE Streaming**: Live discovery feed line-by-line via Server-Sent Events (NDJSON stream to frontend).
-- **Docker Native**: Single-command containerized deployment with host networking.
+- **Docker Native**: Single-command containerized deployment with host networking and `CAP_NET_RAW` privileges.
 
 ---
 

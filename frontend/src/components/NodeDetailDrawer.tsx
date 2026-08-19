@@ -40,13 +40,32 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
 
   if (!node) return null;
 
-  const handleCopyIp = async () => {
+  const getServiceConnectionString = (ip: string, port: number, serviceName: string) => {
+    const s = serviceName.toLowerCase();
+    if (s.includes('mysql') || port === 3306) return `mysql://root@${ip}:${port}/`;
+    if (s.includes('postgres') || s.includes('postgresql') || port === 5432) return `postgresql://postgres@${ip}:${port}/`;
+    if (s.includes('mongodb') || port === 27017) return `mongodb://${ip}:${port}/`;
+    if (s.includes('redis') || port === 6379) return `redis://${ip}:${port}/0`;
+    if (s.includes('mssql') || port === 1433) return `mssql://sa@${ip}:${port}`;
+    if (s.includes('oracle') || port === 1521) return `oracle://thin:@${ip}:${port}/XE`;
+    if (s.includes('elasticsearch') || port === 9200) return `http://${ip}:${port}/_cluster/health`;
+    if (s.includes('memcached') || port === 11211) return `memcached://${ip}:${port}`;
+    if (s.includes('couchdb') || port === 5984) return `http://${ip}:${port}/_all_dbs`;
+    if (s.includes('cassandra') || port === 9042) return `cqlsh://${ip}:${port}`;
+    if (s.includes('ssh') || port === 22) return `ssh root@${ip} -p ${port}`;
+    if (s.includes('ftp') || port === 21) return `ftp://${ip}:${port}/`;
+    if (s.includes('rdp') || port === 3389) return `rdp://${ip}:${port}`;
+    if (s.includes('vnc') || port === 5900 || port === 5901) return `vnc://${ip}:${port}`;
+    return null;
+  };
+
+  const handleCopyText = async (text: string, setCopied: (v: boolean) => void) => {
     try {
-      await navigator.clipboard.writeText(node.ip);
-      setCopiedIp(true);
-      setTimeout(() => setCopiedIp(false), 1500);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     } catch (err) {
-      console.error('Failed to copy IP address:', err);
+      console.error('Failed to copy text:', err);
     }
   };
 
@@ -156,7 +175,7 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <p className="text-foreground font-mono font-semibold text-sm">{node.ip}</p>
                 <button
-                  onClick={handleCopyIp}
+                  onClick={() => handleCopyText(node.ip, setCopiedIp)}
                   className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-surface-hover transition-all"
                   title="Copy IP address"
                 >
@@ -222,6 +241,82 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
               </div>
             )}
           </div>
+
+          {node.roles && node.roles.length > 0 && (
+            <div className="p-4 bg-surface rounded-xl border border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <ShieldCheckered size={15} className="text-muted-foreground" />
+                  Security & Misconfiguration Audit ({node.roles.length})
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">Detailed Analysis</span>
+              </div>
+              <div className="space-y-2">
+                {node.roles.map((r, i) => {
+                  let category = 'Configuration Notice';
+                  let description = 'Exposed infrastructure service detected during port audit.';
+                  let format = r;
+
+                  if (r.startsWith('smb-open-share:')) {
+                    const shareName = r.split(':')[1];
+                    category = 'Open SMB File Share';
+                    description = `Unauthenticated accessible network folder: \\\\${node.ip}\\${shareName}`;
+                    format = `smb://${node.ip}/${shareName}`;
+                  } else if (r.includes('ftp-anonymous-login')) {
+                    category = 'Anonymous FTP Login';
+                    description = `FTP service permits unauthenticated guest/anonymous login on ${node.ip}:21`;
+                    format = `ftp://anonymous@${node.ip}/`;
+                  } else if (r.includes('redis')) {
+                    category = 'Exposed Redis Data Store';
+                    description = `Unauthenticated Redis instance reachable on port 6379`;
+                    format = `redis://${node.ip}:6379/0`;
+                  } else if (r.includes('mongodb')) {
+                    category = 'Exposed MongoDB Database';
+                    description = `No authentication required for MongoDB service on port 27017`;
+                    format = `mongodb://${node.ip}:27017/`;
+                  } else if (r.includes('telnet')) {
+                    category = 'Cleartext Telnet Service';
+                    description = `Unencrypted shell access protocol active on port 23`;
+                    format = `telnet://${node.ip}:23`;
+                  } else if (r.includes('docker')) {
+                    category = 'Unencrypted Docker API';
+                    description = `Docker daemon REST API listening without TLS on port 2375/2376`;
+                    format = `http://${node.ip}:2375/version`;
+                  } else if (r.includes('nfs')) {
+                    category = 'Exported NFS Share';
+                    description = `Network File System share exposed to the local network segment`;
+                    format = `nfs://${node.ip}/`;
+                  } else if (r.includes('cve-check:')) {
+                    category = 'Known CVE / Legacy Software';
+                    description = r.replace('cve-check:', '').trim();
+                    format = r;
+                  }
+
+                  return (
+                    <div key={i} className="p-2.5 rounded-lg bg-background border border-border space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-foreground text-[11px] font-mono">{category}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-surface-hover text-muted-foreground border border-border text-[9px] font-mono">
+                          INFO
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">{description}</p>
+                      <div className="pt-1 flex items-center justify-between text-[10px] font-mono text-foreground/80">
+                        <span className="truncate flex-1 font-semibold">{format}</span>
+                        <button
+                          onClick={() => handleCopyText(format, () => {})}
+                          className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-surface-hover transition-colors shrink-0"
+                          title="Copy detail"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="p-5 border-b border-border">
@@ -258,15 +353,34 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                       {p.protocol}
                     </span>
                   </div>
-                  {p.isWeb && p.url && (
+                  {p.isWeb && p.url ? (
                     <a
                       href={p.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 flex items-center gap-1.5 text-[11px] text-accent hover:opacity-80 font-medium"
+                      className="mt-2 flex items-center gap-1.5 text-[11px] text-accent hover:opacity-80 font-medium font-mono"
                     >
                       <ArrowSquareOut size={13} /> Open {p.url}
                     </a>
+                  ) : (
+                    (() => {
+                      const connStr = getServiceConnectionString(node.ip, p.port, p.service);
+                      if (!connStr) return null;
+                      return (
+                        <div className="mt-2 flex items-center gap-2 p-1.5 rounded bg-background border border-border">
+                          <span className="text-[11px] font-mono text-foreground/90 truncate flex-1">
+                            {connStr}
+                          </span>
+                          <button
+                            onClick={() => handleCopyText(connStr, () => {})}
+                            className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-surface-hover transition-colors shrink-0"
+                            title="Copy Connection String"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                      );
+                    })()
                   )}
                   {(p.version || p.banner) && (
                     <div className="mt-2 pl-4 border-l-2 border-border space-y-1">
@@ -277,7 +391,7 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                         </p>
                       )}
                       {p.banner && (
-                        <p className="text-[10px] text-muted-foreground font-mono break-all" title={p.banner}>
+                        <p className="text-[10px] text-muted-foreground font-mono break-all">
                           <span className="text-muted-foreground">Banner: </span>{p.banner}
                         </p>
                       )}

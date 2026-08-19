@@ -7,6 +7,7 @@ import { HostTable } from './components/HostTable';
 import { ScanSettingsModal } from './components/ScanSettingsModal';
 import { ScanHistoryModal } from './components/ScanHistoryModal';
 import { UpdateModal } from './components/UpdateModal';
+import { ExportModal } from './components/ExportModal';
 import { NetworkScanResult, NetworkNode, NetworkLink, GraphSettings, NetworkInterface, VersionInfo } from './types';
 import { useTheme } from './hooks/useTheme';
 
@@ -20,6 +21,7 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isUpdateOpen, setIsUpdateOpen] = useState<boolean>(false);
+  const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
   const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [currentSubnet, setCurrentSubnet] = useState<string>('auto');
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
@@ -180,6 +182,7 @@ export const App: React.FC = () => {
         onToggleTheme={toggleTheme}
         versionInfo={versionInfo}
         onOpenUpdateModal={() => setIsUpdateOpen(true)}
+        onOpenExport={() => setIsExportOpen(true)}
       />
 
       {/* Main Full-Screen Canvas Area */}
@@ -265,6 +268,15 @@ export const App: React.FC = () => {
           setScanResult(scan);
         }}
       />
+
+      {/* Export Artifacts Modal */}
+      {isExportOpen && (
+        <ExportModal
+          nodes={scanResult?.nodes ?? []}
+          links={scanResult?.links ?? []}
+          onClose={() => setIsExportOpen(false)}
+        />
+      )}
 
       {/* System Update & Version Modal */}
       {versionInfo && (

@@ -206,22 +206,19 @@ async fn main() {
         .filter(|s| !s.eq_ignore_ascii_case("auto") && !s.is_empty());
 
     let target_subnets: Vec<String> = if let Some(s) = explicit_subnet {
-        vec![s.clone()]
+        expand_target_subnet(s)
     } else {
         let mut subs = Vec::new();
         for iface in &interfaces {
-            // Docker bridge subnets are handled exclusively by Phase 5 (docker inspect).
-            // Sweeping them here too creates a second node per container with the same
-            // IP/id, which is the "floating duplicate node" bug in the graph.
             if iface.if_type != InterfaceType::Loopback
                 && iface.if_type != InterfaceType::Docker
                 && !iface.cidr.is_empty()
             {
-                subs.push(iface.cidr.clone());
+                subs.extend(expand_target_subnet(&iface.cidr));
             }
         }
         if subs.is_empty() {
-            vec![self_iface.cidr.clone()]
+            expand_target_subnet(&self_iface.cidr)
         } else {
             subs
         }
@@ -767,29 +764,127 @@ async fn main() {
 
         let category = if is_vpn_host { "vpn" } else { "host" };
 
-        // Security-relevant findings — each backed by an actual verification
-        // probe run only when the port that makes it meaningful is open, not
-        // guessed from port presence alone.
+        // Security & Misconfiguration findings — superfast non-blocking checks
         let host_port_nums: HashSet<u16> = port_entries.iter().map(|p| p.port).collect();
         let mut roles: Vec<String> = Vec::new();
-        if host_port_nums.contains(&21) && probes::check_ftp_anonymous(host_ip).await {
-            roles.push("ftp-anonymous-login".to_string());
+
+        // 1. File Sharing & Storage Probes
+        if host_port_nums.contains(&21) {
+            if probes::check_ftp_anonymous(host_ip).await {
+                roles.push("ftp-anonymous-login-allowed".to_string());
+            } else {
+                roles.push("ftp-service-exposed".to_string());
+            }
+        }
+        if host_port_nums.contains(&69) {
+            roles.push("tftp-unauthenticated-udp-share".to_string());
         }
         if host_port_nums.contains(&445) || host_port_nums.contains(&139) {
             if let Some(shares) = probes::smb_list_shares(host_ip) {
                 for share in shares.iter().take(5) {
                     roles.push(format!("smb-open-share:{}", share));
                 }
+            } else {
+                roles.push("smb-file-sharing-active".to_string());
             }
         }
+        if host_port_nums.contains(&2049) {
+            roles.push("nfs-network-file-share-exposed".to_string());
+        }
+        if host_port_nums.contains(&873) {
+            roles.push("rsync-open-backup-daemon".to_string());
+        }
+        if host_port_nums.contains(&548) {
+            roles.push("afp-apple-file-share-exposed".to_string());
+        }
+
+        // 2. Database & Data Store Probes
+        if host_port_nums.contains(&3306) {
+            roles.push("mysql-database-service-exposed".to_string());
+        }
+        if host_port_nums.contains(&5432) {
+            roles.push("postgresql-database-service-exposed".to_string());
+        }
+        if host_port_nums.contains(&1433) {
+            roles.push("mssql-database-service-exposed".to_string());
+        }
+        if host_port_nums.contains(&1521) {
+            roles.push("oracle-db-service-exposed".to_string());
+        }
+        if host_port_nums.contains(&6379) {
+            roles.push("redis-nosql-store-exposed".to_string());
+        }
+        if host_port_nums.contains(&27017) {
+            roles.push("mongodb-nosql-database-exposed".to_string());
+        }
+        if host_port_nums.contains(&9200) || host_port_nums.contains(&9300) {
+            roles.push("elasticsearch-cluster-node-exposed".to_string());
+        }
+        if host_port_nums.contains(&5984) {
+            roles.push("couchdb-database-exposed".to_string());
+        }
+        if host_port_nums.contains(&9042) {
+            roles.push("cassandra-nosql-cluster-exposed".to_string());
+        }
+        if host_port_nums.contains(&11211) {
+            roles.push("memcached-cache-daemon-exposed".to_string());
+        }
+
+        // 3. Infrastructure, Control Planes & DevOps APIs
+        if host_port_nums.contains(&2375) || host_port_nums.contains(&2376) {
+            roles.push("docker-engine-remote-api-exposed".to_string());
+        }
+        if host_port_nums.contains(&6443) || host_port_nums.contains(&10250) {
+            roles.push("kubernetes-apiserver-kubelet-exposed".to_string());
+        }
+        if host_port_nums.contains(&2379) || host_port_nums.contains(&2380) {
+            roles.push("etcd-distributed-kv-store-exposed".to_string());
+        }
+        if host_port_nums.contains(&1883) || host_port_nums.contains(&8883) {
+            roles.push("mqtt-iot-broker-exposed".to_string());
+        }
+        if host_port_nums.contains(&5672) || host_port_nums.contains(&15672) {
+            roles.push("rabbitmq-amqp-broker-exposed".to_string());
+        }
+        if host_port_nums.contains(&9090) {
+            roles.push("prometheus-metrics-exporter-exposed".to_string());
+        }
+
+        // 4. Remote Management & Legacy Cleartext Probes
+        if host_port_nums.contains(&23) {
+            roles.push("cleartext-telnet-enabled".to_string());
+        }
+        if host_port_nums.contains(&5900) || host_port_nums.contains(&5901) {
+            roles.push("vnc-remote-desktop-exposed".to_string());
+        }
+        if host_port_nums.contains(&3389) {
+            roles.push("rdp-service-exposed".to_string());
+        }
+        if host_port_nums.contains(&161) {
+            roles.push("snmp-service-active".to_string());
+        }
         if host_port_nums.contains(&88) && host_port_nums.contains(&389) && host_port_nums.contains(&445) {
-            roles.push("domain-controller-candidate".to_string());
+            roles.push("active-directory-domain-controller".to_string());
         }
         if host_port_nums.contains(&3268) || host_port_nums.contains(&3269) {
-            roles.push("global-catalog".to_string());
+            roles.push("ad-global-catalog".to_string());
         }
         if host_port_nums.contains(&636) {
-            roles.push("ldaps".to_string());
+            roles.push("ldaps-secure-directory".to_string());
+        }
+
+        // Cross-reference versions against fast known CVE matching heuristics
+        for entry in &port_entries {
+            if let Some(ver) = &entry.version {
+                let lower_ver = ver.to_lowercase();
+                if lower_ver.contains("openssh_7.") || lower_ver.contains("openssh_6.") {
+                    roles.push(format!("cve-check: {}: OpenSSH legacy version ({})", entry.port, ver));
+                } else if lower_ver.contains("apache/2.4.49") || lower_ver.contains("apache/2.4.50") {
+                    roles.push(format!("cve-check: {}: CVE-2021-41773 Path Traversal ({})", entry.port, ver));
+                } else if lower_ver.contains("log4j") {
+                    roles.push(format!("cve-check: {}: Log4Shell candidate ({})", entry.port, ver));
+                }
+            }
         }
 
         let node = NetworkNode {
@@ -1327,8 +1422,13 @@ fn guess_device_type(
         {
             bump(&mut scores, "router", 40);
         }
-        if hl.contains("printer") || hl.contains("print") || hl.contains("laserjet") || hl.contains("officejet") {
-            bump(&mut scores, "printer", 45);
+        if hl.contains("printer") || hl.contains("print") || hl.contains("laserjet") || hl.contains("officejet")
+            || hl.contains("epson") || hl.contains("canon") || hl.contains("brother") || hl.contains("ricoh")
+            || hl.contains("kyocera") || hl.contains("xerox") || hl.contains("lexmark") || hl.contains("pantum")
+            || hl.contains("konica") || hl.contains("minolta") || hl.contains("hp-") || hl.contains("pagewide")
+            || hl.contains("deskjet") || hl.contains("smart tank") || hl.contains("ecotank")
+        {
+            bump(&mut scores, "printer", 55);
         }
         if hl.contains("nas") || hl.contains("synology") || hl.contains("qnap") || hl.contains("diskstation") {
             bump(&mut scores, "nas", 40);
@@ -1336,8 +1436,6 @@ fn guess_device_type(
         if hl.contains("macbook") || hl.contains("imac") || hl.contains("laptop") || hl.contains("desktop") {
             bump(&mut scores, "laptop", 30);
         }
-        // Actual PC model names/lines — a hostname literally naming the
-        // hardware model is about as strong as evidence gets.
         if hl.contains("thinkpad") || hl.contains("thinkcentre") || hl.contains("ideapad")
             || hl.contains("legion") || hl.contains("latitude") || hl.contains("inspiron")
             || hl.contains("optiplex") || hl.contains("precision") || hl.contains("vostro")
@@ -1352,10 +1450,7 @@ fn guess_device_type(
         }
     }
 
-    // --- TLS certificate CN / HTTP page title (strong signal for
-    // self-hosted web UIs — the caller feeds http_title in here whenever
-    // there's no TLS cert, so this also catches plain-HTTP router/AP admin
-    // panels like a WiFi extender's login page) ---
+    // --- TLS certificate CN / HTTP page title / Printer Web UI titles ---
     if let Some(cn) = ssl_cn {
         let cnl = cn.to_lowercase();
         if cnl.contains("tplink") || cnl.contains("tp-link") || cnl.contains("asus")
@@ -1366,11 +1461,12 @@ fn guess_device_type(
         {
             bump(&mut scores, "router", 35);
         }
-        // Vocabulary that's near-exclusively used on actual WiFi hardware
-        // admin panels (routers, APs, extenders/repeaters) rather than
-        // general self-hosted software — a much safer generic net than
-        // matching on "login"/"admin"/"setup" alone, which would also fire
-        // on Grafana/Portainer/NAS login pages and misclassify those.
+        if cnl.contains("printer") || cnl.contains("epson") || cnl.contains("hp laserjet") || cnl.contains("officejet")
+            || cnl.contains("brother") || cnl.contains("canon") || cnl.contains("kyocera") || cnl.contains("ricoh")
+            || cnl.contains("xerox") || cnl.contains("lexmark") || cnl.contains("web jetadmin")
+        {
+            bump(&mut scores, "printer", 60);
+        }
         if cnl.contains("wireless") || cnl.contains("access point") || cnl.contains("extender")
             || cnl.contains("repeater") || cnl.contains("range extender") || cnl.contains("wifi router")
             || cnl.contains("hotspot") || cnl.contains("wlan")
@@ -1385,9 +1481,7 @@ fn guess_device_type(
         }
     }
 
-    // --- SNMP sysDescr (strongest signal of all — self-reported by the
-    // device's own firmware; SNMP being enabled at all on a home/office
-    // network is itself decent evidence of managed network gear) ---
+    // --- SNMP sysDescr (strongest signal of all) ---
     if let Some(desc) = snmp_desc {
         let dl = desc.to_lowercase();
         if dl.contains("cisco") || dl.contains("mikrotik") || dl.contains("routeros")
@@ -1396,22 +1490,28 @@ fn guess_device_type(
             || dl.contains("access point")
         {
             bump(&mut scores, "router", 55);
-        } else if dl.contains("printer") || dl.contains("laserjet") || dl.contains("officejet") || dl.contains("deskjet") {
-            bump(&mut scores, "printer", 55);
+        } else if dl.contains("printer") || dl.contains("laserjet") || dl.contains("officejet") || dl.contains("deskjet")
+            || dl.contains("epson") || dl.contains("brother") || dl.contains("kyocera") || dl.contains("ricoh") || dl.contains("xerox")
+        {
+            bump(&mut scores, "printer", 65);
         } else if dl.contains("synology") || dl.contains("qnap") || dl.contains("nas") {
             bump(&mut scores, "nas", 55);
         } else if dl.contains("ups") || dl.contains("apc") {
             bump(&mut scores, "iot", 40);
         } else {
-            // SNMP with no recognizable keyword is still almost always
-            // managed infrastructure on a home/office LAN, just weaker.
             bump(&mut scores, "router", 25);
         }
     }
 
-    // --- Open-port fingerprints (hard evidence — highest weights) ---
-    if port_nums.contains(&9100) || port_nums.contains(&631) {
-        bump(&mut scores, "printer", 45);
+    // --- Open-port fingerprints (LPD 515, RAW 9100, IPP 631, SNMP 161, mDNS 5353) ---
+    if port_nums.contains(&9100) {
+        bump(&mut scores, "printer", 55);
+    }
+    if port_nums.contains(&631) {
+        bump(&mut scores, "printer", 50);
+    }
+    if port_nums.contains(&515) {
+        bump(&mut scores, "printer", 50);
     }
     if port_nums.contains(&3306) || port_nums.contains(&5432) || port_nums.contains(&27017)
         || port_nums.contains(&6379) || port_nums.contains(&9042)
@@ -1432,9 +1532,6 @@ fn guess_device_type(
         bump(&mut scores, "laptop", 15);
     }
     if port_nums.contains(&22) && (port_nums.contains(&80) || port_nums.contains(&443)) {
-        // Weak on its own — plenty of laptops run a local dev server or
-        // Docker Desktop and expose the same combo. Real evidence (vendor
-        // OUI, hostname/model name) should outweigh this, not lose to it.
         bump(&mut scores, "server", 18);
     }
     if port_nums.contains(&179) || port_nums.contains(&161) {
@@ -1444,9 +1541,18 @@ fn guess_device_type(
         bump(&mut scores, "iot", 35);
     }
 
-    // --- Vendor OUI (weak-to-medium — shared across device classes) ---
+    // --- Vendor OUI (Printer OEMs) ---
     if let Some(v) = vendor {
         let vl = v.to_lowercase();
+        if vl.contains("seiko epson") || vl.contains("epson") || vl.contains("canon")
+            || vl.contains("brother industries") || vl.contains("kyocera") || vl.contains("ricoh")
+            || vl.contains("xerox") || vl.contains("lexmark") || vl.contains("konica minolta")
+            || vl.contains("fuji xerox") || vl.contains("okidata") || vl.contains("oki electric")
+            || vl.contains("pantum") || vl.contains("zebra technologies") || vl.contains("sato corp")
+            || vl.contains("star micronics") || vl.contains("citizen systems")
+        {
+            bump(&mut scores, "printer", 55);
+        }
         if vl.contains("samsung") || vl.contains("huawei")
             || vl.contains("xiaomi") || vl.contains("oneplus") || vl.contains("oppo")
             || vl.contains("realme") || vl.contains("vivo") || vl.contains("nothing technology")
@@ -1680,4 +1786,42 @@ fn get_local_os() -> String {
         }
     }
     "Linux".to_string()
+}
+
+/// Supports single subnets (192.168.1.0/24), IP ranges (192.168.1.10-192.168.1.50),
+/// and large CIDR networks (/16, /12) by chunking them into /24 subnets.
+fn expand_target_subnet(input: &str) -> Vec<String> {
+    let s = input.trim();
+    if s.is_empty() || s.eq_ignore_ascii_case("auto") {
+        return Vec::new();
+    }
+    // Check for IP range syntax: "192.168.1.10-192.168.1.50" or "192.168.1.10-50"
+    if s.contains('-') {
+        return vec![s.to_string()];
+    }
+    // Check for CIDR notation
+    if let Ok(net) = ipnetwork::IpNetwork::from_str(s) {
+        if net.prefix() < 24 {
+            // Chunk /16, /12, /8 into /24 subnets
+            let mut chunks = Vec::new();
+            if let ipnetwork::IpNetwork::V4(v4net) = net {
+                let network_u32: u32 = u32::from(v4net.network());
+                let broadcast_u32: u32 = u32::from(v4net.broadcast());
+                let mut current = network_u32;
+                while current <= broadcast_u32 {
+                    let chunk_ip = std::net::Ipv4Addr::from(current);
+                    chunks.push(format!("{}/24", chunk_ip));
+                    if current.checked_add(256).is_some() {
+                        current += 256;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            if !chunks.is_empty() {
+                return chunks;
+            }
+        }
+    }
+    vec![s.to_string()]
 }

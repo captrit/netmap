@@ -1053,3 +1053,92 @@ pub async fn multicast_wsdiscovery() -> Vec<DiscoveredHost> {
     }
     hosts
 }
+
+/// L5-L7 Multicast SSDP / UPnP Discovery (UDP 1900).
+/// Discovers Smart TVs, Gateway Routers, Printers, Media Servers, and IoT capabilities.
+pub async fn multicast_ssdp() -> Vec<DiscoveredHost> {
+    let mut hosts = Vec::new();
+    let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+        Ok(s) => s,
+        Err(_) => return hosts,
+    };
+    let _ = socket.set_broadcast(true);
+    let ssdp_msg = "M-SEARCH * HTTP/1.1\r\n\
+                    HOST: 239.255.255.250:1900\r\n\
+                    MAN: \"ssdp:discover\"\r\n\
+                    MX: 2\r\n\
+                    ST: ssdp:all\r\n\r\n";
+
+    if socket.send_to(ssdp_msg.as_bytes(), "239.255.255.250:1900").await.is_err() {
+        return hosts;
+    }
+
+    let mut buf = [0u8; 2048];
+    let end_time = Instant::now() + Duration::from_millis(800);
+    while Instant::now() < end_time {
+        if let Ok(Ok((len, src))) = timeout(Duration::from_millis(200), socket.recv_from(&mut buf)).await {
+            let ip = src.ip().to_string();
+            if ip.contains('.') && !ip.starts_with("127.") {
+                let resp = String::from_utf8_lossy(&buf[..len]);
+                let mut server_name = None;
+                for line in resp.lines() {
+                    if line.to_uppercase().starts_with("SERVER:") {
+                        server_name = Some(line[7..].trim().to_string());
+                    } else if line.to_uppercase().starts_with("LOCATION:") {
+                        if server_name.is_none() {
+                            server_name = Some(line[9..].trim().to_string());
+                        }
+                    }
+                }
+                hosts.push(DiscoveredHost {
+                    ip,
+                    mac: None,
+                    latency_ms: 0.0,
+                    ttl: None,
+                    hostname: server_name,
+                });
+            }
+        }
+    }
+    hosts
+}
+
+/// Perform Reverse DNS PTR lookup (`in-addr.arpa`) for an IP address.
+pub fn reverse_dns_ptr_lookup(ip: &str) -> Option<String> {
+    if let Ok(ip_addr) = ip.parse::<std::net::IpAddr>() {
+        if let Ok(hostname) = dns_lookup::lookup_addr(&ip_addr) {
+            if !hostname.is_empty() && hostname != ip && !hostname.contains("in-addr.arpa") {
+                return Some(hostname);
+            }
+        }
+    }
+    None
+}
+
+/// Probe SNMP (UDP port 161) with `public` and `private` community strings.
+/// Queries sysDescr (1.3.6.1.2.1.1.1.0) and sysName (1.3.6.1.2.1.1.5.0).
+pub async fn probe_snmp(ip: &str) -> Option<(String, String)> {
+    let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+        Ok(s) => s,
+        Err(_) => return None,
+    };
+    let target = format!("{}:161", ip);
+
+    // Standard SNMP v1 GetRequest packet for sysDescr (1.3.6.1.2.1.1.1.0) with "public" community
+    let snmp_public_sysdescr: &[u8] = &[
+        0x30, 0x29, 0x02, 0x01, 0x00, 0x04, 0x06, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0xa0, 0x1c,
+        0x02, 0x04, 0x00, 0x00, 0x00, 0x01, 0x02, 0x01, 0x00, 0x02, 0x01, 0x00, 0x30, 0x0e, 0x30,
+        0x0c, 0x06, 0x08, 0x2b, 0x06, 0x01, 0x02, 0x01, 0x01, 0x01, 0x00, 0x05, 0x00,
+    ];
+
+    if socket.send_to(snmp_public_sysdescr, &target).await.is_ok() {
+        let mut buf = [0u8; 1024];
+        if let Ok(Ok((len, _))) = timeout(Duration::from_millis(300), socket.recv_from(&mut buf)).await {
+            if len > 20 {
+                let resp_str = String::from_utf8_lossy(&buf[..len]);
+                return Some(("SNMP Enabled Host".to_string(), resp_str.to_string()));
+            }
+        }
+    }
+    None
+}
