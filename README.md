@@ -1,4 +1,4 @@
-# 🌐 NetMap — High-Performance Network Reconnaissance & Topology Visualizer
+# NetMap: High-Performance Network Reconnaissance & Topology Visualizer
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Engine: Rust](https://img.shields.io/badge/Engine-Rust%202.0-orange.svg)](scanner/)
@@ -6,41 +6,113 @@
 [![Frontend: React](https://img.shields.io/badge/Frontend-React%20%2B%20Tailwind-61DAFB.svg)](frontend/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](Dockerfile)
 
-**NetMap** is an advanced, ultra-fast network discovery suite and interactive topology visualizer built for cybersecurity professionals, VAPT engineers, and system administrators. Powered by a multi-threaded Rust scanning engine, FastAPI backend, and an obsidian-themed React visualizer, NetMap performs active L2/L3 host sweeps, deep service banner grabbing, mDNS/NetBIOS/SSL/TTL fingerprinting, and live SSE topology streaming.
+**NetMap** is a high-performance network discovery suite and interactive topology visualizer engineered for cybersecurity professionals, VAPT engineers, and network administrators. Built with a multi-threaded Rust scanning engine, FastAPI backend, and an obsidian-themed React visualizer, NetMap executes multi-layer L2 to L7 network sweeps, deep service banner grabbing, mDNS/NetBIOS/SSL/TTL fingerprinting, and real-time SSE topology streaming.
 
 ---
 
-## ⚡ Key Features
+## Core Capabilities
 
-- **🚀 Multi-Threaded Rust Scanner Engine (`netmap-scanner`)**: Sub-second subnet sweeps powered by async Rust (`tokio`).
-- **🔍 Deep Device Fingerprinting**: Combines ICMP TTL heuristics, HTTP title extraction, SSL CN parsing, mDNS (`avahi-resolve`), and NetBIOS (`nmblookup`).
-- **📡 Real-Time SSE Streaming**: Live discovery feed line-by-line via Server-Sent Events (NDJSON to frontend).
-- **🐋 Docker-Native**: Single-command container deployment with host networking.
+- **Multi-Threaded Rust Scanner Engine (`netmap-scanner`)**: Sub-second subnet sweeps powered by asynchronous Rust (`tokio`).
+- **Deep Device Fingerprinting**: Combines ICMP TTL heuristics, HTTP title extraction, SSL CN parsing, mDNS (`avahi-resolve`), and NetBIOS (`nmblookup`).
+- **Iceberg Stealth Recon Engine**: Multi-layer L3 ICMP Timestamp/Mask, L4 TCP ACK/SYN, UDP Unreachable, and L5-L7 SSDP/WS-Discovery multicast probes to uncover firewalled and hidden hosts.
+- **Real-Time SSE Streaming**: Live discovery feed line-by-line via Server-Sent Events (NDJSON stream to frontend).
+- **Docker Native**: Single-command containerized deployment with host networking.
 
 ---
 
-## 🏗️ Architecture Overview
+## System Architecture
 
 ```mermaid
 graph TD
     UI["React 18 + Tailwind Web UI<br/>(Port 3000 / Embedded Port 8000)"]
     API["FastAPI Python Backend<br/>(Port 8000)"]
-    ENGINE["netmap-scanner (Rust Engine)<br/>+ arp-scan, nmap, avahi, ping"]
+    ENGINE["netmap-scanner (Rust Engine)"]
+    SYSTEM["System Probe Utilities<br/>(arp-scan, nmap, avahi, ping)"]
 
     UI -->|SSE Live Stream / REST API| API
     API -->|Subprocess Execution| ENGINE
+    ENGINE -->|L2 / L3 / L4 / L7 Probes| SYSTEM
 ```
 
 ---
 
-## 🔒 Permission & Security Setup (Compulsory for Full Capabilities)
+## Multi-Layer Reconnaissance Pipeline
 
-For NetMap to achieve **100% host discovery, accurate OS fingerprinting, and raw packet control** (ICMP ping sweeps, ARP scans, SYN probes, and TTL calculations), elevated network permissions are required.
+```mermaid
+graph LR
+    subgraph L2 ["Layer 2 Data Link"]
+        ARP["ARP Sweep<br/>(arp-scan)"]
+        NEIGHBOR["Kernel Neighbor Table<br/>(/proc/net/arp)"]
+    end
+
+    subgraph L3 ["Layer 3 Network"]
+        ICMP_ECHO["ICMP Echo Sweep"]
+        ICMP_TIME["ICMP Timestamp Probe<br/>(Type 13)"]
+        ICMP_MASK["ICMP Netmask Probe<br/>(Type 17)"]
+    end
+
+    subgraph L4 ["Layer 4 Transport"]
+        TCP_ACK["TCP ACK Stealth Probe<br/>(Ports 80, 443, 22, 445)"]
+        TCP_SYN["TCP SYN Sweep<br/>(Admin Ports)"]
+        UDP_UNREACH["UDP Unreachable Probe<br/>(Ports 53, 123, 137, 161)"]
+    end
+
+    subgraph L5_L7 ["Layer 5-7 Application & Multicast"]
+        SSDP["SSDP Multicast<br/>(UDP 1900)"]
+        WSD["WS-Discovery<br/>(UDP 3702)"]
+        MDNS["mDNS / NetBIOS<br/>(UDP 5353 / 137)"]
+    end
+
+    L2 --> L3
+    L3 --> L4
+    L4 --> L5_L7
+```
+
+---
+
+## Execution Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as React Frontend
+    participant Backend as FastAPI Backend
+    participant Scanner as Rust Scanner (netmap-scanner)
+    participant Target as Local Subnet / Target Hosts
+
+    UI->>Backend: POST /api/scan or GET /api/scan/stream
+    Backend->>Scanner: Spawn Subprocess (netmap-scanner --subnet --stream)
+    
+    rect rgb(20, 25, 35)
+        Note over Scanner,Target: Phase 1: Subnet & Interface Auto-Detection
+        Scanner->>Scanner: Enumerate IPv4 Interfaces & Routing Tables
+        
+        Note over Scanner,Target: Phase 2: Multi-Pass Discovery
+        Scanner->>Target: L2 ARP + L3 ICMP (Echo, Timestamp, Mask)
+        Scanner->>Target: L4 TCP ACK/SYN + UDP Unreachable
+        Scanner->>Target: L5-L7 Multicast Probes (SSDP, WS-Discovery, mDNS)
+        
+        Note over Scanner,Target: Phase 3: Port Scanning & Fingerprinting
+        Scanner->>Target: Concurrent TCP Port Scan (Top + Deep Tier)
+        Scanner->>Target: Grab Service Banners & SSL Certificates
+        Scanner->>Target: Execute SNMP sysDescr & TTL OS Heuristics
+    end
+
+    Scanner-->>Backend: Stream JSON Events (node, link, warning)
+    Backend-->>UI: Server-Sent Events (SSE Stream)
+    UI->>UI: Render Dynamic Topology Graph & Host Matrix
+```
+
+---
+
+## Permission & Security Setup
+
+For NetMap to achieve 100% host discovery, accurate OS fingerprinting, and raw packet control (ICMP ping sweeps, ARP scans, SYN probes, and TTL calculations), elevated network permissions are required.
 
 > [!IMPORTANT]
-> **Security Best Practice:** Never run the FastAPI web server or Python process as `root`. NetMap uses **Linux File Capabilities** (`setcap`), granting raw socket permissions **only** to the compiled scanner binary while keeping the web application safely unprivileged.
+> **Security Best Practice:** Never run the FastAPI web server or Python process as root. NetMap uses **Linux File Capabilities** (`setcap`), granting raw socket permissions only to the compiled scanner binary while keeping the web application safely unprivileged.
 
-### 🐧 Linux Privilege Setup (Recommended)
+### Linux Privilege Setup (Recommended)
 
 After compiling the Rust binary, run the privilege setup script once:
 
@@ -65,14 +137,14 @@ getcap scanner/target/release/netmap-scanner
 
 ---
 
-### 🪟 Windows Privilege Setup
+### Windows Privilege Setup
 
-1. **Install Npcap / WinPcap Driver**: Download and install [Npcap](https://npcap.com/#download) with *"Support raw 802.11 traffic"* enabled.
-2. **Run in Administrator Terminal**: Launch PowerShell or Command Prompt as **Administrator** when executing the scanner binary or docker container.
+1. **Install Npcap Driver**: Download and install [Npcap](https://npcap.com/#download) with *"Support raw 802.11 traffic"* enabled.
+2. **Run in Administrator Terminal**: Launch PowerShell or Command Prompt as Administrator when executing the scanner binary or docker container.
 
 ---
 
-### 🍎 macOS Privilege Setup
+### macOS Privilege Setup
 
 1. **Grant BPF Device Access**: macOS requires permissions on Berkeley Packet Filter (`/dev/bpf*`) devices:
    ```bash
@@ -85,13 +157,13 @@ getcap scanner/target/release/netmap-scanner
 
 ---
 
-## 🚀 Installation & Setup Guide
+## Installation & Setup Guide
 
-### 🐳 Option 1: Docker (Fastest & Easiest)
+### Option 1: Docker (Recommended)
 
-Docker allows instant deployment with pre-configured Linux capabilities and host network access.
+Docker allows single-command deployment with pre-configured Linux capabilities and host network access.
 
-#### Using Docker Compose (Recommended)
+#### Using Docker Compose
 
 ```bash
 # 1. Clone repository
@@ -119,7 +191,7 @@ docker run -d \
 
 ---
 
-### 🐧 Option 2: Linux Native Setup
+### Option 2: Linux Native Setup
 
 #### Prerequisites
 - **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
@@ -160,17 +232,17 @@ Access Web UI at: **`http://localhost:3000`** (Backend API running on `http://lo
 
 ---
 
-### 🪟 Option 3: Windows Setup (via WSL2 or Native)
+### Option 3: Windows Setup (via WSL2 or Native)
 
-#### Option A: Using WSL2 (Ubuntu on Windows) — Recommended
+#### Option A: Using WSL2 (Ubuntu on Windows) - Recommended
 1. Install WSL2: `wsl --install`
 2. Open Ubuntu terminal inside WSL2 and follow the **Linux Native Setup** above.
 
 #### Option B: Windows Native Setup
 1. Install [Rust for Windows](https://www.rust-lang.org/tools/install).
-2. Install [Python 3](https://www.python.org/downloads/) & [Node.js](https://nodejs.org/).
+2. Install [Python 3](https://www.python.org/downloads/) and [Node.js](https://nodejs.org/).
 3. Install [Npcap](https://npcap.com/).
-4. In an **Administrator PowerShell**:
+4. In an Administrator PowerShell:
    ```powershell
    cd scanner; cargo build --release; cd ..
    pip install -r requirements.txt
@@ -180,7 +252,7 @@ Access Web UI at: **`http://localhost:3000`** (Backend API running on `http://lo
 
 ---
 
-### 🍎 Option 4: macOS Setup
+### Option 4: macOS Setup
 
 ```bash
 # 1. Install prerequisites via Homebrew
@@ -207,12 +279,12 @@ cd frontend && npm install && cd ..
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/health` | `GET` | Health check & engine status |
-| `/api/interfaces` | `GET` | List host network interfaces & IP subnets |
+| `/api/health` | `GET` | Health check and engine status |
+| `/api/interfaces` | `GET` | List host network interfaces and IP subnets |
 | `/api/topology` | `GET` | Fetch latest cached network topology |
 | `/api/scan` | `POST` | Trigger synchronous full-subnet scan |
 | `/api/scan/stream` | `GET` | SSE stream for real-time live host discovery |
@@ -221,6 +293,6 @@ cd frontend && npm install && cd ..
 
 ---
 
-## 📄 License
+## License
 
 Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more details.
