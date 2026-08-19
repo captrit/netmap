@@ -247,14 +247,29 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                   <ShieldCheckered size={15} className="text-muted-foreground" />
-                  Security & Misconfiguration Audit ({node.roles.length})
+                  Security & Misconfiguration Audit ({
+                    node.roles.filter(r => 
+                      r.startsWith('smb-open-share:') || 
+                      r.includes('ftp-anonymous-login') || 
+                      r.includes('redis') || 
+                      r.includes('mongodb') || 
+                      r.includes('telnet') || 
+                      r.includes('docker') || 
+                      r.includes('nfs') || 
+                      r.includes('cve-check:') ||
+                      r.includes('memcached') ||
+                      r.includes('tftp') ||
+                      r.includes('rsync') ||
+                      r.includes('elasticsearch')
+                    ).length
+                  })
                 </span>
-                <span className="text-[10px] text-muted-foreground font-mono">Detailed Analysis</span>
+                <span className="text-[10px] text-muted-foreground font-mono">Verified Findings</span>
               </div>
               <div className="space-y-2">
                 {node.roles.map((r, i) => {
-                  let category = 'Configuration Notice';
-                  let description = 'Exposed infrastructure service detected during port audit.';
+                  let category = '';
+                  let description = '';
                   let format = r;
 
                   if (r.startsWith('smb-open-share:')) {
@@ -274,6 +289,10 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                     category = 'Exposed MongoDB Database';
                     description = `No authentication required for MongoDB service on port 27017`;
                     format = `mongodb://${node.ip}:27017/`;
+                  } else if (r.includes('memcached')) {
+                    category = 'Exposed Memcached Daemon';
+                    description = `Unauthenticated Memcached service active on port 11211`;
+                    format = `memcached://${node.ip}:11211`;
                   } else if (r.includes('telnet')) {
                     category = 'Cleartext Telnet Service';
                     description = `Unencrypted shell access protocol active on port 23`;
@@ -286,10 +305,25 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                     category = 'Exported NFS Share';
                     description = `Network File System share exposed to the local network segment`;
                     format = `nfs://${node.ip}/`;
+                  } else if (r.includes('tftp')) {
+                    category = 'Unauthenticated TFTP Server';
+                    description = `Trivial FTP server listening on UDP port 69`;
+                    format = `tftp://${node.ip}:69/`;
+                  } else if (r.includes('rsync')) {
+                    category = 'Exposed Rsync Daemon';
+                    description = `Open Rsync backup module reachable on port 873`;
+                    format = `rsync://${node.ip}:873/`;
+                  } else if (r.includes('elasticsearch')) {
+                    category = 'Exposed Elasticsearch Cluster';
+                    description = `Elasticsearch cluster HTTP API active on port 9200`;
+                    format = `http://${node.ip}:9200/_cluster/health`;
                   } else if (r.includes('cve-check:')) {
-                    category = 'Known CVE / Legacy Software';
+                    category = 'Known Vulnerability Heuristic';
                     description = r.replace('cve-check:', '').trim();
                     format = r;
+                  } else {
+                    // Suppress generic noise/false positive fallback cards completely
+                    return null;
                   }
 
                   return (
@@ -297,7 +331,7 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-foreground text-[11px] font-mono">{category}</span>
                         <span className="px-1.5 py-0.5 rounded bg-surface-hover text-muted-foreground border border-border text-[9px] font-mono">
-                          INFO
+                          AUDIT
                         </span>
                       </div>
                       <p className="text-[11px] text-muted-foreground">{description}</p>
