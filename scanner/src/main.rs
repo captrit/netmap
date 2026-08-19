@@ -259,8 +259,23 @@ async fn main() {
             all_hosts.entry(h.ip.clone()).or_insert(h);
         }
 
+        let iceberg_hosts = probes::nmap_iceberg_stealth_sweep(subnet);
+        for h in iceberg_hosts {
+            all_hosts.entry(h.ip.clone()).or_insert(h);
+        }
+
         let icmp_hosts = probes::ping_sweep_subnet(subnet).await;
         for h in icmp_hosts {
+            all_hosts.entry(h.ip.clone()).or_insert(h);
+        }
+
+        let ssdp_hosts = probes::multicast_ssdp_discovery().await;
+        for h in ssdp_hosts {
+            all_hosts.entry(h.ip.clone()).or_insert(h);
+        }
+
+        let wsd_hosts = probes::multicast_wsdiscovery().await;
+        for h in wsd_hosts {
             all_hosts.entry(h.ip.clone()).or_insert(h);
         }
     }

@@ -901,3 +901,155 @@ pub async fn snmp_get_sysdescr(ip: &str) -> Option<String> {
         Some(desc)
     }
 }
+
+/// Perform L3/L4 Iceberg Stealth Recon Sweep (ICMP Timestamp/AddressMask + TCP ACK/SYN + UDP Unreachable).
+/// Detects quiet, firewalled, or hidden hosts that ignore standard ICMP Echo pings.
+pub fn nmap_iceberg_stealth_sweep(subnet: &str) -> Vec<DiscoveredHost> {
+    let output = Command::new("nmap")
+        .args([
+            "-sn",
+            "-PE",                       // L3 ICMP Echo
+            "-PP",                       // L3 ICMP Timestamp Request (bypasses ping blocks)
+            "-PM",                       // L3 ICMP Address Mask Request
+            "-PA80,443,22,445,3389,8080", // L4 Stealth TCP ACK Probe (forces RST from firewalled hosts)
+            "-PS80,443,22,445,3389,8080", // L4 TCP SYN Probe
+            "-PU53,123,137,161",         // L4 UDP Unreachable Probe
+            "-T4",
+            "--max-retries", "2",
+            subnet,
+        ])
+        .output();
+
+    let mut hosts = Vec::new();
+    match output {
+        Ok(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            let mut current_ip: Option<String> = None;
+            let mut current_mac: Option<String> = None;
+            let mut current_latency: f64 = 0.0;
+
+            for line in stdout.lines() {
+                if line.starts_with("Nmap scan report for ") {
+                    if let Some(ip) = current_ip.take() {
+                        hosts.push(DiscoveredHost {
+                            ip,
+                            mac: current_mac.take(),
+                            latency_ms: current_latency,
+                            ttl: None,
+                            hostname: None,
+                        });
+                    }
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    let raw_target = parts.last().unwrap_or(&"");
+                    let ip = raw_target.trim_matches('(').trim_matches(')');
+                    if ip.contains('.') {
+                        current_ip = Some(ip.to_string());
+                    }
+                } else if line.contains("Host is up") {
+                    if let Some(pos) = line.find('(') {
+                        if let Some(end) = line[pos..].find("s latency") {
+                            let lat_str = &line[pos + 1..pos + end];
+                            if let Ok(s) = lat_str.parse::<f64>() {
+                                current_latency = s * 1000.0;
+                            }
+                        }
+                    }
+                } else if line.starts_with("MAC Address: ") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 3 {
+                        current_mac = Some(parts[2].to_lowercase());
+                    }
+                }
+            }
+            if let Some(ip) = current_ip {
+                hosts.push(DiscoveredHost {
+                    ip,
+                    mac: current_mac,
+                    latency_ms: current_latency,
+                    ttl: None,
+                    hostname: None,
+                });
+            }
+        }
+        _ => {}
+    }
+    hosts
+}
+
+/// L5-L7 Multicast Discovery via SSDP (UDP 1900).
+/// Discovers hidden UPnP devices, smart media servers, routers, and IoT gear.
+pub async fn multicast_ssdp_discovery() -> Vec<DiscoveredHost> {
+    let mut hosts = Vec::new();
+    let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+        Ok(s) => s,
+        Err(_) => return hosts,
+    };
+    let _ = socket.set_broadcast(true);
+    let ssdp_msg = "M-SEARCH * HTTP/1.1\r\n\
+                    HOST: 239.255.255.250:1900\r\n\
+                    MAN: \"ssdp:discover\"\r\n\
+                    MX: 1\r\n\
+                    ST: ssdp:all\r\n\r\n";
+
+    if socket.send_to(ssdp_msg.as_bytes(), "239.255.255.250:1900").await.is_err() {
+        return hosts;
+    }
+
+    let mut buf = [0u8; 2048];
+    let end_time = Instant::now() + Duration::from_millis(600);
+    while Instant::now() < end_time {
+        if let Ok(Ok((_len, src))) = timeout(Duration::from_millis(150), socket.recv_from(&mut buf)).await {
+            let ip = src.ip().to_string();
+            if ip.contains('.') && !ip.starts_with("127.") {
+                hosts.push(DiscoveredHost {
+                    ip,
+                    mac: None,
+                    latency_ms: 0.0,
+                    ttl: None,
+                    hostname: None,
+                });
+            }
+        }
+    }
+    hosts
+}
+
+/// L5-L7 Multicast Discovery via WS-Discovery (UDP 3702).
+/// Discovers IP cameras, ONVIF devices, printers, and hidden Windows workstations.
+pub async fn multicast_wsdiscovery() -> Vec<DiscoveredHost> {
+    let mut hosts = Vec::new();
+    let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
+        Ok(s) => s,
+        Err(_) => return hosts,
+    };
+    let _ = socket.set_broadcast(true);
+    let ws_msg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+                  <s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\" \
+                  xmlns:a=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\">\
+                  <s:Header><a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</a:Action>\
+                  <a:MessageID>urn:uuid:0a0a0a0a-0a0a-0a0a-0a0a-0a0a0a0a0a0a</a:MessageID>\
+                  <a:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To></s:Header>\
+                  <s:Body><Probe xmlns=\"http://schemas.xmlsoap.org/ws/2005/04/discovery\"/></s:Body></s:Envelope>";
+
+    if socket.send_to(ws_msg.as_bytes(), "239.255.255.250:3702").await.is_err() {
+        return hosts;
+    }
+
+    let mut buf = [0u8; 2048];
+    let end_time = Instant::now() + Duration::from_millis(600);
+    while Instant::now() < end_time {
+        if let Ok(Ok((_len, src))) = timeout(Duration::from_millis(150), socket.recv_from(&mut buf)).await {
+            let ip = src.ip().to_string();
+            if ip.contains('.') && !ip.starts_with("127.") {
+                hosts.push(DiscoveredHost {
+                    ip,
+                    mac: None,
+                    latency_ms: 0.0,
+                    ttl: None,
+                    hostname: None,
+                });
+            }
+        }
+    }
+    hosts
+}
