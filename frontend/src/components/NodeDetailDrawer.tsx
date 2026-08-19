@@ -222,19 +222,6 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
               </div>
             )}
           </div>
-
-          {node.roles && node.roles.length > 0 && (
-            <div className="p-4 bg-danger-bg rounded-xl border border-danger/30 space-y-1.5">
-              <p className="text-danger font-semibold flex items-center gap-1.5">
-                <ShieldCheckered size={14} /> VERIFIED FINDINGS
-              </p>
-              {node.roles.map((role) => (
-                <p key={role} className="text-[11px] text-danger/90 pl-1">
-                  • {role}
-                </p>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="p-5 border-b border-border">
