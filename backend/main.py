@@ -1,5 +1,5 @@
 """
-NetPulse v2 API — Real-time Network Scanner, Streaming, and History API.
+NetMap API — Real-time Network Scanner, Streaming, and History API.
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +13,7 @@ from scanner import NetworkScanner
 import db
 
 app = FastAPI(
-    title="NetPulse v2 API",
+    title="NetMap API",
     description="Real network reconnaissance scanner & streaming API",
     version="2.0.0",
 )
@@ -51,8 +51,8 @@ def startup_event():
 def health_check() -> Dict[str, Any]:
     return {
         "status": "ok",
-        "service": "NetPulse v2 API",
-        "engine": "Rust netpulse-scanner",
+        "service": "NetMap API",
+        "engine": "Rust netmap-scanner",
         "uptime_sec": round(time.process_time(), 2),
     }
 
@@ -156,6 +156,14 @@ def scan_status() -> Dict[str, Any]:
         "isScanning": is_scanning,
         "hasCachedResult": db.get_current_topology() is not None,
     }
+
+
+import os
+from fastapi.staticfiles import StaticFiles
+
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+if os.path.exists(frontend_dist):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
 
 
 if __name__ == "__main__":

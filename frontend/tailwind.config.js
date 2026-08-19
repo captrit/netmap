@@ -5,31 +5,40 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#000000',
+        background: 'rgb(var(--background) / <alpha-value>)',
+        foreground: 'rgb(var(--foreground) / <alpha-value>)',
+        'muted-foreground': 'rgb(var(--muted-foreground) / <alpha-value>)',
         surface: {
-          50: '#171717',
-          100: '#0a0a0a',
-          200: '#121212',
-          300: '#1e1e1e',
-          400: '#262626',
-          500: '#333333',
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          hover: 'rgb(var(--surface-hover) / <alpha-value>)',
         },
         border: {
-          subtle: 'rgba(255, 255, 255, 0.08)',
-          glow: 'rgba(255, 255, 255, 0.18)',
+          DEFAULT: 'rgb(var(--border) / <alpha-value>)',
+          strong: 'rgb(var(--border-strong) / <alpha-value>)',
         },
         accent: {
-          blue: '#0070f3',
-          purple: '#7928ca',
-          cyan: '#00dfd8',
-          green: '#00df72',
-          amber: '#f5a623',
-          rose: '#ff0080',
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          foreground: 'rgb(var(--accent-foreground) / <alpha-value>)',
+        },
+        success: 'rgb(var(--success) / <alpha-value>)',
+        warning: 'rgb(var(--warning) / <alpha-value>)',
+        danger: {
+          DEFAULT: 'rgb(var(--danger) / <alpha-value>)',
+          bg: 'rgb(var(--danger-bg) / <alpha-value>)',
         },
       },
+      borderRadius: {
+        sm: '3px',
+        DEFAULT: '4px',
+        md: '5px',
+        lg: '6px',
+        xl: '8px',
+        '2xl': '10px',
+        full: '9999px',
+      },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        sans: ['"Geist Sans"', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['"Geist Mono"', 'JetBrains Mono', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -39,7 +48,7 @@ export default {
       keyframes: {
         glowPulse: {
           '0%': { boxShadow: '0 0 15px rgba(0, 112, 243, 0.2), 0 0 30px rgba(0, 112, 243, 0.1)' },
-          '100%': { boxShadow: '0 0 25px rgba(0, 223, 216, 0.4), 0 0 50px rgba(0, 223, 216, 0.2)' },
+          '100%': { boxShadow: '0 0 25px rgba(0, 112, 243, 0.4), 0 0 50px rgba(0, 112, 243, 0.2)' },
         },
         scanLine: {
           '0%': { transform: 'translateY(-100%)' },
@@ -48,5 +57,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 };

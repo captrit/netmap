@@ -10,20 +10,20 @@ else
     PYTHON_BIN="python3"
 fi
 
-echo "[NetPulse] Building Rust Scanner binary..."
+echo "[NetMap] Building Rust Scanner binary..."
 cd scanner && cargo build --release
 cd ..
 
-echo "[NetPulse] Starting FastAPI Backend on http://localhost:8000 using $PYTHON_BIN..."
+echo "[NetMap] Starting FastAPI Backend on http://localhost:8000 using $PYTHON_BIN..."
 $PYTHON_BIN backend/main.py &
 BACKEND_PID=$!
 
-echo "[NetPulse] Starting React Frontend on http://localhost:3000..."
+echo "[NetMap] Starting React Frontend on http://localhost:3000..."
 cd frontend && npm run dev &
 FRONTEND_PID=$!
 
 cleanup() {
-    echo -e "\n[NetPulse] Shutting down servers..."
+    echo -e "\n[NetMap] Shutting down servers..."
     kill $BACKEND_PID 2>/dev/null || true
     kill $FRONTEND_PID 2>/dev/null || true
     exit 0
@@ -31,5 +31,5 @@ cleanup() {
 
 trap cleanup INT TERM
 
-echo "[NetPulse] System running! Press Ctrl+C to stop."
+echo "[NetMap] System running! Press Ctrl+C to stop."
 wait

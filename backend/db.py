@@ -1,5 +1,5 @@
 """
-NetPulse In-Memory Database Module.
+NetMap In-Memory Database Module.
 Provides session-only persistence for scan topology and history.
 Data is stored strictly in-memory (:memory:) and wipes automatically when the server is restarted or stopped.
 """
@@ -9,7 +9,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 # Shared in-memory SQLite URI so multiple threads/requests access the same memory DB
-DB_URI = "file:netpulse_session.db?mode=memory&cache=shared"
+DB_URI = "file:netmap_session.db?mode=memory&cache=shared"
 
 _conn: Optional[sqlite3.Connection] = None
 

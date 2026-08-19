@@ -254,7 +254,24 @@ pub async fn scan_deep_ports(ip: &str, timeout_ms: u64, already_open: &[u16]) ->
 }
 
 /// Grab service banner from an open TCP port with intelligent HTTP/SSL/SSH probes.
+///
+/// Router/AP/extender admin panels very commonly redirect `/` straight to a
+/// login page (e.g. `/info/Login.html`) — the bare redirect response has no
+/// useful `<title>`, which silently starved device-type fingerprinting of
+/// exactly the signal it needed. Follow one redirect hop to the real page.
 pub async fn grab_banner(ip: &str, port: u16) -> Option<String> {
+    let banner = grab_banner_at_path(ip, port, "/").await?;
+
+    if let Some(location) = extract_redirect_location(&banner) {
+        if let Some(redirected) = grab_banner_at_path(ip, port, &location).await {
+            return Some(redirected);
+        }
+    }
+
+    Some(banner)
+}
+
+async fn grab_banner_at_path(ip: &str, port: u16, path: &str) -> Option<String> {
     let addr = format!("{}:{}", ip, port);
     let connect_result = timeout(Duration::from_millis(1500), TcpStream::connect(&addr)).await;
     let mut stream = match connect_result {
@@ -268,7 +285,7 @@ pub async fn grab_banner(ip: &str, port: u16) -> Option<String> {
     );
 
     if is_http_port {
-        let req = format!("GET / HTTP/1.1\r\nHost: {}\r\nUser-Agent: NetPulse/2.0\r\nAccept: */*\r\nConnection: close\r\n\r\n", ip);
+        let req = format!("GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: NetMap/2.0\r\nAccept: */*\r\nConnection: close\r\n\r\n", path, ip);
         let _ = stream.write_all(req.as_bytes()).await;
     } else if port == 22 {
         // SSH sends banner automatically upon connect
@@ -305,6 +322,37 @@ pub async fn grab_banner(ip: &str, port: u16) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Pull a redirect target out of a raw HTTP response — status line 3xx plus
+/// a `Location:` header — normalized to a request path on the same host.
+fn extract_redirect_location(banner: &str) -> Option<String> {
+    let mut lines = banner.lines();
+    let status_line = lines.next()?;
+    let status_code: u16 = status_line.split_whitespace().nth(1)?.parse().ok()?;
+    if !(300..400).contains(&status_code) {
+        return None;
+    }
+
+    for line in lines {
+        if line.len() > 9 && line[..9].eq_ignore_ascii_case("location:") {
+            let value = line[9..].trim();
+            if value.is_empty() {
+                return None;
+            }
+            // Strip scheme+host from an absolute URL; keep relative paths as-is.
+            if let Some(after_scheme) = value.split("://").nth(1) {
+                let path = after_scheme.splitn(2, '/').nth(1);
+                return Some(format!("/{}", path.unwrap_or("")));
+            }
+            return Some(if value.starts_with('/') {
+                value.to_string()
+            } else {
+                format!("/{}", value)
+            });
+        }
+    }
+    None
 }
 
 /// Pull the `<title>` out of an HTTP response banner (grab_banner already

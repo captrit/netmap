@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-base font-bold tracking-tight text-white font-sans flex items-center gap-2">
-              NETPULSE <span className="text-xs font-mono font-normal text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-full">OBSIDIAN v1.0</span>
+              NETMAP <span className="text-xs font-mono font-normal text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-full">OBSIDIAN v1.0</span>
             </h1>
           </div>
           <p className="text-xs text-neutral-400 font-mono flex items-center gap-2 mt-0.5">

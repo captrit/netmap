@@ -20,7 +20,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BINARY="$SCRIPT_DIR/target/release/netpulse-scanner"
+BINARY="$SCRIPT_DIR/target/release/netmap-scanner"
 
 if [ ! -f "$BINARY" ]; then
     echo "error: $BINARY not found — run 'cargo build --release' first." >&2

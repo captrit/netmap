@@ -7,8 +7,10 @@ import { HostTable } from './components/HostTable';
 import { ScanSettingsModal } from './components/ScanSettingsModal';
 import { ScanHistoryModal } from './components/ScanHistoryModal';
 import { NetworkScanResult, NetworkNode, NetworkLink, GraphSettings, NetworkInterface } from './types';
+import { useTheme } from './hooks/useTheme';
 
 export const App: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
   const [scanResult, setScanResult] = useState<NetworkScanResult | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [activeView, setActiveView] = useState<'graph' | 'table'>('graph');
@@ -145,7 +147,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="w-screen h-screen bg-[#09090b] text-white flex flex-col overflow-hidden font-mono select-none">
+    <div className="w-screen h-screen bg-background text-foreground flex flex-col overflow-hidden font-sans select-none">
       {/* Top Floating Minimalist Controls */}
       <TopFloatingBar
         onStartScan={() => handleTriggerScan(currentSubnet)}
@@ -158,6 +160,8 @@ export const App: React.FC = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         totalNodesCount={scanResult?.nodes.length || 0}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main Full-Screen Canvas Area */}
@@ -167,12 +171,12 @@ export const App: React.FC = () => {
           .map((warning) => (
             <div
               key={warning}
-              className="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-xl bg-amber-950/90 border border-amber-700/60 backdrop-blur-md rounded-xl px-4 py-2.5 shadow-2xl font-mono text-[11px] text-amber-200 flex items-start gap-3"
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-xl bg-warning/10 border border-warning/30 backdrop-blur-md rounded-xl px-4 py-2.5 shadow-lg text-[11px] text-warning flex items-start gap-3"
             >
               <span className="flex-1">{warning}</span>
               <button
                 onClick={() => setDismissedWarning(warning)}
-                className="text-amber-400 hover:text-white shrink-0"
+                className="text-warning/70 hover:text-warning shrink-0"
                 title="Dismiss"
               >
                 ✕
@@ -189,6 +193,7 @@ export const App: React.FC = () => {
               onSelectNode={setSelectedNode}
               settings={graphSettings}
               searchQuery={searchQuery}
+              theme={theme}
             />
 
             {/* Physics Control Tweaks */}

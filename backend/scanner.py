@@ -1,5 +1,5 @@
 """
-NetPulse v2 Scanner — Python wrapper around the Rust netpulse-scanner binary.
+NetMap Scanner — Python wrapper around the Rust netmap-scanner binary.
 Supports both synchronous JSON execution and asynchronous live streaming (NDJSON -> SSE).
 """
 import json
@@ -11,7 +11,7 @@ from typing import Any, Dict, Generator, List, Optional
 
 
 SCANNER_BINARY = str(
-    Path(__file__).parent.parent / "scanner" / "target" / "release" / "netpulse-scanner"
+    Path(__file__).parent.parent / "scanner" / "target" / "release" / "netmap-scanner"
 )
 
 

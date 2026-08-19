@@ -1213,6 +1213,7 @@ fn guess_device_type(
         }
         if hl.contains("router") || hl.contains("gateway") || hl.contains("ap-")
             || hl.contains("modem") || hl.contains("unifi") || hl.contains("access-point")
+            || hl.contains("extender") || hl.contains("repeater") || hl.contains("wifi")
         {
             bump(&mut scores, "router", 40);
         }
@@ -1241,13 +1242,30 @@ fn guess_device_type(
         }
     }
 
-    // --- TLS certificate CN (strong signal for self-hosted web UIs) ---
+    // --- TLS certificate CN / HTTP page title (strong signal for
+    // self-hosted web UIs — the caller feeds http_title in here whenever
+    // there's no TLS cert, so this also catches plain-HTTP router/AP admin
+    // panels like a WiFi extender's login page) ---
     if let Some(cn) = ssl_cn {
         let cnl = cn.to_lowercase();
-        if cnl.contains("tplink") || cnl.contains("asus") || cnl.contains("netgear")
-            || cnl.contains("router") || cnl.contains("mikrotik") || cnl.contains("ubiquiti")
+        if cnl.contains("tplink") || cnl.contains("tp-link") || cnl.contains("asus")
+            || cnl.contains("netgear") || cnl.contains("router") || cnl.contains("mikrotik")
+            || cnl.contains("ubiquiti") || cnl.contains("d-link") || cnl.contains("dlink")
+            || cnl.contains("tenda") || cnl.contains("xiaomi") || cnl.contains("mi wifi")
+            || cnl.contains("totolink") || cnl.contains("linksys") || cnl.contains("belkin")
         {
             bump(&mut scores, "router", 35);
+        }
+        // Vocabulary that's near-exclusively used on actual WiFi hardware
+        // admin panels (routers, APs, extenders/repeaters) rather than
+        // general self-hosted software — a much safer generic net than
+        // matching on "login"/"admin"/"setup" alone, which would also fire
+        // on Grafana/Portainer/NAS login pages and misclassify those.
+        if cnl.contains("wireless") || cnl.contains("access point") || cnl.contains("extender")
+            || cnl.contains("repeater") || cnl.contains("range extender") || cnl.contains("wifi router")
+            || cnl.contains("hotspot") || cnl.contains("wlan")
+        {
+            bump(&mut scores, "router", 30);
         }
         if cnl.contains("synology") || cnl.contains("qnap") {
             bump(&mut scores, "nas", 35);
@@ -1347,6 +1365,8 @@ fn guess_device_type(
         if vl.contains("cisco") || vl.contains("juniper") || vl.contains("mikrotik")
             || vl.contains("ubiquiti") || vl.contains("tp-link") || vl.contains("netgear")
             || vl.contains("d-link") || vl.contains("tenda") || vl.contains("aruba")
+            || vl.contains("xiaomi") || vl.contains("totolink") || vl.contains("linksys")
+            || vl.contains("belkin")
         {
             bump(&mut scores, "router", 25);
         }
@@ -1383,7 +1403,11 @@ fn guess_device_type(
         // NIC-chipset vendors (not the OEM, but the WiFi/ethernet module
         // supplier) — much weaker signal since these ship in routers/IoT
         // too, but still lean PC in the absence of anything stronger.
-        if vl.contains("intel corporate") || vl.contains("liteon") || vl.contains("azurewave")
+        // AzureWave deliberately excluded: it's primarily a WiFi-module
+        // supplier for routers/APs/extenders, not laptops — leaning "laptop"
+        // on that OUI alone was actively wrong for exactly that class of
+        // device (a WiFi extender with no other laptop-like evidence).
+        if vl.contains("intel corporate") || vl.contains("liteon")
             || vl.contains("qualcomm atheros") || vl.contains("realtek")
         {
             bump(&mut scores, "laptop", 12);

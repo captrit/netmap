@@ -1,5 +1,5 @@
 [package]
-name = "netpulse-scanner"
+name = "netmap-scanner"
 version = "2.0.0"
 edition = "2021"
 description = "Real network reconnaissance scanner for VAPT topology mapping"

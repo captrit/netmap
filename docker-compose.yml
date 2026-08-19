@@ -1,0 +1,14 @@
+services:
+  netmap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netmap
+    restart: unless-stopped
+    # host network mode grants container direct access to local host interfaces for full LAN scanning
+    network_mode: "host"
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      - PYTHONUNBUFFERED=1

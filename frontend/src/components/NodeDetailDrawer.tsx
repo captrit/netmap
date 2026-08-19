@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NetworkNode, NetworkLink } from '../types';
 import {
   User,
@@ -16,6 +16,9 @@ import {
   Television,
   Cpu,
   HardDrives,
+  ArrowSquareOut,
+  Copy,
+  Check,
 } from '@phosphor-icons/react';
 
 interface NodeDetailDrawerProps {
@@ -33,7 +36,19 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
   onClose,
   onSelectConnectedNode,
 }) => {
+  const [copiedIp, setCopiedIp] = useState(false);
+
   if (!node) return null;
+
+  const handleCopyIp = async () => {
+    try {
+      await navigator.clipboard.writeText(node.ip);
+      setCopiedIp(true);
+      setTimeout(() => setCopiedIp(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy IP address:', err);
+    }
+  };
 
   const connectedLinks = links.filter((l) => l.source === node.id || l.target === node.id);
   const connectedNodeIds = new Set(connectedLinks.map((l) => (l.source === node.id ? l.target : l.source)));
@@ -100,12 +115,12 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
 
     return (
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="p-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-200">
+        <span className="p-1.5 rounded-md bg-surface-hover border border-border text-foreground/80">
           {icon}
         </span>
-        <span className="text-xs font-mono font-medium text-zinc-200">{label}</span>
+        <span className="text-xs font-medium text-foreground/80">{label}</span>
         {isSelf && (
-          <span className="px-2 py-0.5 text-[10px] font-mono bg-white text-black font-bold rounded">
+          <span className="px-2 py-0.5 text-[10px] bg-foreground text-background font-semibold rounded">
             YOU ARE HERE
           </span>
         )}
@@ -114,85 +129,94 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
   };
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-50 w-[480px] md:w-[520px] max-w-[95vw] bg-[#09090b]/95 border-l border-zinc-800 shadow-2xl flex flex-col justify-between overflow-y-auto backdrop-blur-xl animate-in slide-in-from-right duration-250 select-none">
+    <aside className="fixed top-[68px] bottom-4 right-4 z-40 w-[480px] md:w-[520px] max-w-[95vw] bg-background border border-border rounded-2xl shadow-2xl flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-250 select-none font-sans">
       <div>
-        <div className="p-5 border-b border-zinc-800/80 flex items-start justify-between">
+        <div className="p-5 border-b border-border flex items-start justify-between">
           <div>
             <div className="mb-2.5">{renderDeviceBadge(node.deviceType, node.isSelf)}</div>
-            <h2 className="text-base font-bold text-white font-mono break-all">{node.label}</h2>
-            <p className="text-xs text-zinc-400 font-mono mt-1 flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
-              Status: <span className="text-white font-semibold uppercase">{node.status}</span>
+            <h2 className="text-base font-semibold text-foreground break-all">{node.label}</h2>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-success animate-ping"></span>
+              Status: <span className="text-foreground font-medium uppercase">{node.status}</span>
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-all"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg bg-surface border border-border hover:bg-surface-hover transition-all"
             title="Close Drawer"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="p-5 space-y-4 border-b border-zinc-800/80 text-xs font-mono">
+        <div className="p-5 space-y-4 border-b border-border text-xs">
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 bg-zinc-900/80 rounded-xl border border-zinc-800/60">
-              <p className="text-zinc-400 font-medium">IP Address</p>
-              <p className="text-white font-bold text-sm mt-0.5">{node.ip}</p>
+            <div className="p-3.5 bg-surface rounded-xl border border-border">
+              <p className="text-muted-foreground font-medium">IP Address</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-foreground font-mono font-semibold text-sm">{node.ip}</p>
+                <button
+                  onClick={handleCopyIp}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-surface-hover transition-all"
+                  title="Copy IP address"
+                >
+                  {copiedIp ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+                </button>
+              </div>
             </div>
-            <div className="p-3.5 bg-zinc-900/80 rounded-xl border border-zinc-800/60">
-              <p className="text-zinc-400 font-medium">MAC Address</p>
-              <p className="text-zinc-300 font-medium mt-0.5 truncate">{node.mac || 'N/A'}</p>
+            <div className="p-3.5 bg-surface rounded-xl border border-border">
+              <p className="text-muted-foreground font-medium">MAC Address</p>
+              <p className="text-foreground/80 font-mono mt-0.5 truncate">{node.mac || 'N/A'}</p>
             </div>
-            <div className="p-3.5 bg-zinc-900/80 rounded-xl border border-zinc-800/60">
-              <p className="text-zinc-400 font-medium">Latency</p>
-              <p className="text-white font-bold mt-0.5 flex items-center gap-1">
-                <Lightning size={14} className="text-zinc-400" /> {node.latencyMs} ms
+            <div className="p-3.5 bg-surface rounded-xl border border-border">
+              <p className="text-muted-foreground font-medium">Latency</p>
+              <p className="text-foreground font-mono font-semibold mt-0.5 flex items-center gap-1">
+                <Lightning size={14} className="text-muted-foreground" /> {node.latencyMs} ms
               </p>
             </div>
-            <div className="p-3.5 bg-zinc-900/80 rounded-xl border border-zinc-800/60">
-              <p className="text-zinc-400 font-medium">Interface</p>
-              <p className="text-zinc-200 font-medium mt-0.5">{node.interface || 'unknown'}</p>
+            <div className="p-3.5 bg-surface rounded-xl border border-border">
+              <p className="text-muted-foreground font-medium">Interface</p>
+              <p className="text-foreground/80 font-medium mt-0.5">{node.interface || 'unknown'}</p>
             </div>
           </div>
 
-          <div className="p-4 bg-zinc-900/80 rounded-xl border border-zinc-800/60 space-y-2">
+          <div className="p-4 bg-surface rounded-xl border border-border space-y-2">
             <div>
-              <span className="text-zinc-400">Hardware Vendor: </span>
-              <span className="text-white font-medium">{node.vendor || 'Unknown Hardware Vendor'}</span>
+              <span className="text-muted-foreground">Hardware Vendor: </span>
+              <span className="text-foreground font-medium">{node.vendor || 'Unknown Hardware Vendor'}</span>
             </div>
             <div>
-              <span className="text-zinc-400">OS Footprint: </span>
-              <span className="text-zinc-200 font-semibold">{node.os || 'Linux/Embedded Device'}</span>
+              <span className="text-muted-foreground">OS Footprint: </span>
+              <span className="text-foreground/80 font-medium">{node.os || 'Linux/Embedded Device'}</span>
             </div>
             {node.hostname && (
               <div>
-                <span className="text-zinc-400">Hostname: </span>
-                <span className="text-white font-medium">{node.hostname}</span>
+                <span className="text-muted-foreground">Hostname: </span>
+                <span className="text-foreground font-medium">{node.hostname}</span>
               </div>
             )}
             {node.ttl !== undefined && node.ttl !== null && (
               <div>
-                <span className="text-zinc-400">ICMP Response TTL: </span>
-                <span className="text-zinc-200">{node.ttl}</span>
+                <span className="text-muted-foreground">ICMP Response TTL: </span>
+                <span className="text-foreground/80">{node.ttl}</span>
               </div>
             )}
             {node.confidence !== undefined && node.confidence !== null && (
               <div className="flex items-center gap-2 pt-1">
-                <span className="text-zinc-400">Detection Confidence: </span>
-                <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <span className="text-muted-foreground">Detection Confidence: </span>
+                <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-white rounded-full transition-all"
+                    className="h-full bg-accent rounded-full transition-all"
                     style={{ width: `${node.confidence}%` }}
                   />
                 </div>
-                <span className="text-zinc-200 font-bold text-[11px]">{node.confidence}%</span>
+                <span className="text-foreground/80 font-semibold text-[11px]">{node.confidence}%</span>
               </div>
             )}
             {node.hop !== undefined && node.hop !== null && node.hop > 0 && (
               <div>
-                <span className="text-zinc-400">Discovered: </span>
-                <span className="text-amber-400 font-medium">
+                <span className="text-muted-foreground">Discovered: </span>
+                <span className="text-warning font-medium">
                   {node.hop} hop away, via pivot {node.viaPivot || 'unknown'}
                 </span>
               </div>
@@ -200,12 +224,12 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
           </div>
 
           {node.roles && node.roles.length > 0 && (
-            <div className="p-4 bg-red-950/30 rounded-xl border border-red-900/50 space-y-1.5">
-              <p className="text-red-400 font-bold flex items-center gap-1.5">
+            <div className="p-4 bg-danger-bg rounded-xl border border-danger/30 space-y-1.5">
+              <p className="text-danger font-semibold flex items-center gap-1.5">
                 <ShieldCheckered size={14} /> VERIFIED FINDINGS
               </p>
               {node.roles.map((role) => (
-                <p key={role} className="text-[11px] text-red-200 font-mono pl-1">
+                <p key={role} className="text-[11px] text-danger/90 pl-1">
                   • {role}
                 </p>
               ))}
@@ -213,37 +237,37 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
           )}
         </div>
 
-        <div className="p-5 border-b border-zinc-800/80">
-          <h3 className="text-xs font-bold font-mono text-white flex items-center gap-2 mb-3">
-            <ShieldCheckered size={16} className="text-zinc-400" />
+        <div className="p-5 border-b border-border">
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-2 mb-3">
+            <ShieldCheckered size={16} className="text-muted-foreground" />
             OPEN PORTS & SERVICES ({node.ports.length})
             {node.ports.some((p) => p.isWeb) && (
-              <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] normal-case font-bold">
+              <span className="px-2 py-0.5 rounded bg-accent/15 text-accent border border-accent/30 text-[10px] normal-case font-semibold">
                 {node.ports.filter((p) => p.isWeb).length} web app{node.ports.filter((p) => p.isWeb).length > 1 ? 's' : ''}
               </span>
             )}
           </h3>
 
           {node.ports.length === 0 ? (
-            <p className="text-xs font-mono text-zinc-500 italic">No open ports detected on this host.</p>
+            <p className="text-xs text-muted-foreground italic">No open ports detected on this host.</p>
           ) : (
             <div className="space-y-2.5">
               {node.ports.map((p) => (
                 <div
                   key={p.port}
-                  className={`p-3 rounded-lg border text-xs font-mono ${
+                  className={`p-3 rounded-lg border text-xs ${
                     p.isWeb
-                      ? 'bg-blue-950/30 border-blue-500/50'
-                      : 'bg-zinc-900/90 border-zinc-800'
+                      ? 'bg-accent/10 border-accent/40'
+                      : 'bg-surface border-border'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`w-2 h-2 rounded-full ${p.isWeb ? 'bg-blue-400' : 'bg-white'}`}></span>
-                      <span className="font-bold text-white text-sm">:{p.port}</span>
-                      <span className="text-zinc-200 font-semibold">{p.service}</span>
+                    <div className="flex items-center gap-2.5 font-mono">
+                      <span className={`w-2 h-2 rounded-full ${p.isWeb ? 'bg-accent' : 'bg-success'}`}></span>
+                      <span className="font-semibold text-foreground text-sm">:{p.port}</span>
+                      <span className="text-foreground/80 font-medium">{p.service}</span>
                     </div>
-                    <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 text-[10px] uppercase">
+                    <span className="px-2 py-0.5 rounded bg-surface-hover text-muted-foreground border border-border text-[10px] uppercase font-mono">
                       {p.protocol}
                     </span>
                   </div>
@@ -252,22 +276,22 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
                       href={p.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 flex items-center gap-1.5 text-[11px] text-blue-300 hover:text-blue-200 font-medium underline decoration-blue-500/50"
+                      className="mt-2 flex items-center gap-1.5 text-[11px] text-accent hover:opacity-80 font-medium"
                     >
-                      🌐 Open {p.url}
+                      <ArrowSquareOut size={13} /> Open {p.url}
                     </a>
                   )}
                   {(p.version || p.banner) && (
-                    <div className="mt-2 pl-4 border-l-2 border-zinc-800 space-y-1">
+                    <div className="mt-2 pl-4 border-l-2 border-border space-y-1">
                       {p.version && (
-                        <p className="text-[11px] text-zinc-300">
-                          <span className="text-zinc-400">Version: </span>
-                          <span className="text-white font-medium">{p.version}</span>
+                        <p className="text-[11px] text-foreground/80">
+                          <span className="text-muted-foreground">Version: </span>
+                          <span className="text-foreground font-medium">{p.version}</span>
                         </p>
                       )}
                       {p.banner && (
-                        <p className="text-[10px] text-zinc-400 font-mono break-all" title={p.banner}>
-                          <span className="text-zinc-400">Banner: </span>{p.banner}
+                        <p className="text-[10px] text-muted-foreground font-mono break-all" title={p.banner}>
+                          <span className="text-muted-foreground">Banner: </span>{p.banner}
                         </p>
                       )}
                     </div>
@@ -279,8 +303,8 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
         </div>
 
         <div className="p-5">
-          <h3 className="text-xs font-bold font-mono text-white flex items-center gap-2 mb-3">
-            <Pulse size={16} className="text-zinc-400" />
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-2 mb-3">
+            <Pulse size={16} className="text-muted-foreground" />
             TOPOLOGY NEIGHBORS ({connectedNodes.length})
           </h3>
 
@@ -289,13 +313,13 @@ export const NodeDetailDrawer: React.FC<NodeDetailDrawerProps> = ({
               <button
                 key={peer.id}
                 onClick={() => onSelectConnectedNode(peer)}
-                className="w-full flex items-center justify-between p-3 bg-zinc-900/60 hover:bg-zinc-800 rounded-lg border border-zinc-800 transition-all text-xs font-mono text-left group"
+                className="w-full flex items-center justify-between p-3 bg-surface hover:bg-surface-hover rounded-lg border border-border transition-all text-xs text-left group"
               >
                 <div>
-                  <p className="text-zinc-200 font-medium group-hover:text-white">{peer.label}</p>
-                  <p className="text-[10px] text-zinc-400">{peer.ip}</p>
+                  <p className="text-foreground/80 font-medium group-hover:text-foreground">{peer.label}</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">{peer.ip}</p>
                 </div>
-                <span className="text-[10px] text-zinc-300 font-bold">{peer.latencyMs} ms</span>
+                <span className="text-[10px] text-foreground/80 font-mono font-semibold">{peer.latencyMs} ms</span>
               </button>
             ))}
           </div>

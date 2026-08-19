@@ -128,7 +128,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "netpulse-scanner"
+name = "netmap-scanner"
 version = "2.0.0"
 dependencies = [
  "ctrlc",
