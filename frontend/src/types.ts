@@ -96,6 +96,17 @@ export interface GraphSettings {
   showGrid: boolean;
 }
 
+export interface VersionInfo {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+  release_url?: string;
+  release_notes?: string;
+  published_at?: string;
+  checked_at?: string;
+  error?: string;
+}
+
 export interface ScanConfig {
   subnet: string;
   scanPorts: boolean;

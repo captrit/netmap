@@ -11,6 +11,7 @@ import time
 
 from scanner import NetworkScanner
 import db
+import updater
 
 app = FastAPI(
     title="NetMap API",
@@ -54,8 +55,21 @@ def health_check() -> Dict[str, Any]:
         "status": "ok",
         "service": "NetMap API",
         "engine": "Rust netmap-scanner",
+        "version": updater.get_current_version(),
         "uptime_sec": round(time.process_time(), 2),
     }
+
+
+@app.get("/api/version")
+def get_version_info(refresh: bool = False) -> Dict[str, Any]:
+    """Return installed version, latest release status, and update availability."""
+    return updater.check_for_updates(force_refresh=refresh)
+
+
+@app.post("/api/version/update")
+def trigger_update() -> Dict[str, Any]:
+    """Trigger system update procedure."""
+    return updater.trigger_system_update()
 
 
 @app.get("/api/interfaces")

@@ -8,8 +8,10 @@ import {
   Table,
   Sun,
   Moon,
+  Sparkle,
 } from '@phosphor-icons/react';
 import { Theme } from '../hooks/useTheme';
+import { VersionInfo } from '../types';
 
 // Same node-graph mark as the browser favicon, in currentColor so it tracks
 // the theme instead of the favicon's fixed white.
@@ -40,6 +42,8 @@ interface TopFloatingBarProps {
   totalNodesCount: number;
   theme: Theme;
   onToggleTheme: () => void;
+  versionInfo?: VersionInfo | null;
+  onOpenUpdateModal?: () => void;
 }
 
 export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
@@ -55,6 +59,8 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
   totalNodesCount,
   theme,
   onToggleTheme,
+  versionInfo,
+  onOpenUpdateModal,
 }) => {
   return (
     <div className="absolute top-4 left-6 right-6 z-30 flex items-center justify-between pointer-events-none select-none font-sans text-xs">
@@ -63,6 +69,16 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
         <div className="flex items-center gap-2">
           <BrandMark size={18} className="text-foreground" />
           <span className="font-semibold text-foreground tracking-wide text-xs">NETMAP</span>
+          <button
+            onClick={onOpenUpdateModal}
+            className="px-1.5 py-0.5 rounded-full bg-border/60 hover:bg-border text-muted-foreground hover:text-foreground text-[10px] font-mono transition-colors flex items-center gap-1"
+            title="View NetMap Version & Updates"
+          >
+            v{versionInfo?.current_version || '2.0.0'}
+            {versionInfo?.update_available && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+            )}
+          </button>
           <span className="px-1.5 py-0.5 rounded-full bg-border/60 text-muted-foreground text-[10px] font-mono">
             {totalNodesCount} NODES
           </span>
@@ -89,6 +105,17 @@ export const TopFloatingBar: React.FC<TopFloatingBarProps> = ({
 
       {/* Right: Controls */}
       <div className="pointer-events-auto flex items-center gap-2.5">
+        {versionInfo?.update_available && (
+          <button
+            onClick={onOpenUpdateModal}
+            className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-medium flex items-center gap-1.5 transition-all shadow-lg backdrop-blur-xl animate-pulse"
+            title="New NetMap Update Available!"
+          >
+            <Sparkle size={14} weight="fill" className="text-emerald-400" />
+            v{versionInfo.latest_version} Update
+          </button>
+        )}
+
         <div className="flex items-center bg-surface/90 p-1 rounded-lg border border-border backdrop-blur-xl">
           <button
             onClick={() => setActiveView('graph')}

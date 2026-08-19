@@ -6,7 +6,8 @@ import { NodeDetailDrawer } from './components/NodeDetailDrawer';
 import { HostTable } from './components/HostTable';
 import { ScanSettingsModal } from './components/ScanSettingsModal';
 import { ScanHistoryModal } from './components/ScanHistoryModal';
-import { NetworkScanResult, NetworkNode, NetworkLink, GraphSettings, NetworkInterface } from './types';
+import { UpdateModal } from './components/UpdateModal';
+import { NetworkScanResult, NetworkNode, NetworkLink, GraphSettings, NetworkInterface, VersionInfo } from './types';
 import { useTheme } from './hooks/useTheme';
 
 export const App: React.FC = () => {
@@ -18,6 +19,8 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isUpdateOpen, setIsUpdateOpen] = useState<boolean>(false);
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
   const [currentSubnet, setCurrentSubnet] = useState<string>('auto');
   const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
   const [dismissedWarning, setDismissedWarning] = useState<string | null>(null);
@@ -34,7 +37,20 @@ export const App: React.FC = () => {
   useEffect(() => {
     fetchInterfaces();
     fetchInitialTopology();
+    fetchVersionInfo();
   }, []);
+
+  const fetchVersionInfo = async (refresh: boolean = false) => {
+    try {
+      const res = await fetch(`/api/version?refresh=${refresh}`);
+      if (res.ok) {
+        const data: VersionInfo = await res.json();
+        setVersionInfo(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch version info:', err);
+    }
+  };
 
   const fetchInterfaces = async () => {
     try {
@@ -162,6 +178,8 @@ export const App: React.FC = () => {
         totalNodesCount={scanResult?.nodes.length || 0}
         theme={theme}
         onToggleTheme={toggleTheme}
+        versionInfo={versionInfo}
+        onOpenUpdateModal={() => setIsUpdateOpen(true)}
       />
 
       {/* Main Full-Screen Canvas Area */}
@@ -247,6 +265,16 @@ export const App: React.FC = () => {
           setScanResult(scan);
         }}
       />
+
+      {/* System Update & Version Modal */}
+      {versionInfo && (
+        <UpdateModal
+          versionInfo={versionInfo}
+          isOpen={isUpdateOpen}
+          onClose={() => setIsUpdateOpen(false)}
+          onRefreshVersion={() => fetchVersionInfo(true)}
+        />
+      )}
     </div>
   );
 };

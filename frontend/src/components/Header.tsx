@@ -1,5 +1,6 @@
 import React from 'react';
-import { Activity, Network, ShieldCheck, RefreshCw, Layers, Sliders, Server } from 'lucide-react';
+import { Activity, Network, ShieldCheck, RefreshCw, Layers, Sliders, Server, Sparkles } from 'lucide-react';
+import { VersionInfo } from '../types';
 
 interface HeaderProps {
   onStartScan: () => void;
@@ -8,6 +9,8 @@ interface HeaderProps {
   setActiveView: (view: 'graph' | 'table') => void;
   activeInterface: string;
   onOpenSettings: () => void;
+  versionInfo?: VersionInfo | null;
+  onOpenUpdateModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveView,
   activeInterface,
   onOpenSettings,
+  versionInfo,
+  onOpenUpdateModal,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 px-6 py-3.5 flex items-center justify-between">
@@ -31,8 +36,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-base font-bold tracking-tight text-white font-sans flex items-center gap-2">
-              NETMAP <span className="text-xs font-mono font-normal text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-full">OBSIDIAN v1.0</span>
+              NETMAP <span className="text-xs font-mono font-normal text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-2 py-0.5 rounded-full">v{versionInfo?.current_version || '2.0.0'}</span>
             </h1>
+
+            {versionInfo?.update_available && (
+              <button
+                onClick={onOpenUpdateModal}
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-500/20 transition-all animate-pulse"
+                title="Click to view update details"
+              >
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                v{versionInfo.latest_version} Available
+              </button>
+            )}
           </div>
           <p className="text-xs text-neutral-400 font-mono flex items-center gap-2 mt-0.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
@@ -70,6 +86,19 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Action Controls */}
       <div className="flex items-center gap-3">
+        {versionInfo && (
+          <button
+            onClick={onOpenUpdateModal}
+            className="p-2 text-neutral-400 hover:text-cyan-400 bg-neutral-900 hover:bg-neutral-800 border border-white/10 rounded-lg transition-all relative"
+            title="System Version & Updates"
+          >
+            <Sparkles className={`w-4 h-4 ${versionInfo.update_available ? 'text-emerald-400 animate-bounce' : ''}`} />
+            {versionInfo.update_available && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+            )}
+          </button>
+        )}
+
         <button
           onClick={onOpenSettings}
           className="p-2 text-neutral-400 hover:text-white bg-neutral-900 hover:bg-neutral-800 border border-white/10 rounded-lg transition-all"
